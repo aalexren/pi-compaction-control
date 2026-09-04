@@ -43,47 +43,6 @@ This extension adds the missing piece — a client-side cap on `model.contextWin
 
 ---
 
-## 📦 Built-in context settings (out of the box)
-
-Pi already ships context/compaction controls in `settings.json` — you may not need this extension at all if these are enough. They work with zero install:
-
-```jsonc
-{
-  "compaction": {
-    "enabled": true,            // default: true — enable auto-compaction
-    "reserveTokens": 16384,    // default: 16384 — tokens reserved for the LLM response
-    "keepRecentTokens": 20000  // default: 20000 — recent tokens kept (not summarized)
-  },
-  "branchSummary": {
-    "reserveTokens": 16384,    // default: 16384 — tokens reserved when selecting branch history
-    "skipPrompt": false        // default: false — skip "Summarize branch?" prompt on /tree
-  }
-}
-```
-
-| Built-in key | Default | What it does |
-| --- | --- | --- |
-| `compaction.enabled` | `true` | Enable auto-compaction (disable with `false`; `/compact` still works manually) |
-| `compaction.reserveTokens` | `16384` | Tokens to reserve for the LLM response — auto-compaction fires when `contextTokens > contextWindow - reserveTokens` |
-| `compaction.keepRecentTokens` | `20000` | Recent tokens to keep verbatim (not summarized) |
-| `branchSummary.reserveTokens` | `16384` | Tokens reserved when selecting branch history (output capped at 4096) |
-| `branchSummary.skipPrompt` | `false` | Skip the "Summarize branch?" prompt on `/tree` navigation |
-
-Auto-compaction trigger (Pi core):
-
-```text
-contextTokens > contextWindow - reserveTokens
-```
-
-**What the built-in keys *cannot* do** (and why this extension exists):
-
-- ❌ Cap the model's `contextWindow` itself — Pi uses the model's native window (e.g. 1,000,000 for long-context Claude), so compaction only fires near that native limit.
-- ❌ Choose a different model for the compaction summariser — Pi always uses the active conversation model.
-
-This extension adds exactly those two missing pieces. The built-in `compaction.*` keys continue to work alongside it (and are required — the extension can't override `reserveTokens`/`keepRecentTokens`).
-
----
-
 ## ⬇️ Install
 
 ### Option A — via your agent (recommended)
@@ -250,6 +209,47 @@ On any failure (model not found, auth error, `compact()` throws), control falls 
 
 ---
 
+## 📦 Built-in context settings (out of the box)
+
+Pi already ships context/compaction controls in `settings.json` — you may not need this extension at all if these are enough. They work with zero install:
+
+```jsonc
+{
+  "compaction": {
+    "enabled": true,            // default: true — enable auto-compaction
+    "reserveTokens": 16384,    // default: 16384 — tokens reserved for the LLM response
+    "keepRecentTokens": 20000  // default: 20000 — recent tokens kept (not summarized)
+  },
+  "branchSummary": {
+    "reserveTokens": 16384,    // default: 16384 — tokens reserved when selecting branch history
+    "skipPrompt": false        // default: false — skip "Summarize branch?" prompt on /tree
+  }
+}
+```
+
+| Built-in key | Default | What it does |
+| --- | --- | --- |
+| `compaction.enabled` | `true` | Enable auto-compaction (disable with `false`; `/compact` still works manually) |
+| `compaction.reserveTokens` | `16384` | Tokens to reserve for the LLM response — auto-compaction fires when `contextTokens > contextWindow - reserveTokens` |
+| `compaction.keepRecentTokens` | `20000` | Recent tokens to keep verbatim (not summarized) |
+| `branchSummary.reserveTokens` | `16384` | Tokens reserved when selecting branch history (output capped at 4096) |
+| `branchSummary.skipPrompt` | `false` | Skip the "Summarize branch?" prompt on `/tree` navigation |
+
+Auto-compaction trigger (Pi core):
+
+```text
+contextTokens > contextWindow - reserveTokens
+```
+
+**What the built-in keys *cannot* do** (and why this extension exists):
+
+- ❌ Cap the model's `contextWindow` itself — Pi uses the model's native window (e.g. 1,000,000 for long-context Claude), so compaction only fires near that native limit.
+- ❌ Choose a different model for the compaction summariser — Pi always uses the active conversation model.
+
+This extension adds exactly those two missing pieces. The built-in `compaction.*` keys continue to work alongside it (and are required — the extension can't override `reserveTokens`/`keepRecentTokens`).
+
+---
+
 ## 🧮 How compaction now behaves
 
 With the defaults (`contextCap.cap = 262144`, `compaction.reserveTokens = 32768`):
@@ -316,6 +316,8 @@ Project config merges per top-level key over global — so you can tighten the c
 ## 📋 Requirements
 
 - Pi Coding Agent `>= 0.85.0` (uses the `compact()` export and `modelRegistry.getApiKeyAndHeaders()`)
+
+---
 
 ## License
 
