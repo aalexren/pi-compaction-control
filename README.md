@@ -18,13 +18,11 @@ What you get:
 - Optionally picks a cheaper/faster model to run the compaction summary.
 - Works out of the box with sensible defaults (262k cap, all models) — nothing to set if that's all you want.
 
-Drop the file in `~/.pi/agent/extensions/` and configure in `settings.json`.
-
 ---
 
 ## ❓ Problem
 
-Bigger context windows are not better. Even 2026 frontier models degrade sharply past ~200K tokens: RULER and MRCR v2 benchmarks show them losing **30–60 percentage points** of multi-fact retrieval accuracy between 32K and 500K — on models that *advertise* a 1M-token window. As of May 2026, only Gemini 3.1 Pro sustains >90% single-needle retrieval at the full 1M; everyone else falls off. Letting a conversation balloon to the native window is a measurable accuracy tax — on top of the cost and latency of long prompts.
+Bigger context windows are not better. Even 2026 frontier models degrade sharply past ~200K tokens: RULER and MRCR v2 benchmarks show them losing **30–60 percentage points** of multi-fact retrieval accuracy between 32K and 500K — on models that *advertise* a 1M-token window.
 
 ---
 
