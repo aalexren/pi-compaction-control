@@ -5,6 +5,8 @@
 [![npm downloads](https://img.shields.io/npm/dm/pi-compaction-control)](https://www.npmjs.com/package/pi-compaction-control)
 [![GitHub Actions](https://github.com/aalexren/pi-compaction-control/actions/workflows/publish.yml/badge.svg)](https://github.com/aalexren/pi-compaction-control/actions/workflows/publish.yml)
 [![GitHub release](https://img.shields.io/github/v/release/aalexren/pi-compaction-control?logo=github)](https://github.com/aalexren/pi-compaction-control/releases)
+[![GitHub code size](https://img.shields.io/github/languages/code-size/aalexren/pi-compaction-control?logo=github)](https://github.com/aalexren/pi-compaction-control)
+[![GitHub top language](https://img.shields.io/github/languages/top/aalexren/pi-compaction-control?logo=typescript)](https://github.com/aalexren/pi-compaction-control)
 
 A single [Pi Coding Agent](https://github.com/earendil-works/pi) extension that gives you full control over conversation compaction: a **granular per-model hard cap** on context windows, and a **configurable compaction model** — both read from Pi's own `settings.json`, so everything lives in one place.
 
@@ -72,7 +74,15 @@ This extension adds exactly those two missing pieces. The built-in `compaction.*
 
 ## ⬇️ Install
 
-### Option A — global (recommended)
+### Option A — via your agent (recommended)
+
+Paste this into your Pi agent — it runs the install for you:
+
+```
+install npm:pi-compaction-control
+```
+
+### Option B — global (manual)
 
 Copy the package directory into Pi's global extensions directory:
 
@@ -82,19 +92,19 @@ cp -r pi-compaction-control ~/.pi/agent/extensions/
 
 Pi auto-discovers `~/.pi/agent/extensions/*/index.ts`. No `pi install` needed.
 
-### Option B — from npm (recommended)
+### Option C — from npm (manual)
 
 ```bash
 pi install npm:pi-compaction-control
 ```
 
-### Option C — from this repo as a pi package
+### Option D — from this repo as a pi package
 
 ```bash
 pi install git:github.com/aalexren/pi-compaction-control
 ```
 
-### Option D — project-local
+### Option E — project-local
 
 ```bash
 cp -r pi-compaction-control .pi/extensions/
