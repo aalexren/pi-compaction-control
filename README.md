@@ -22,8 +22,8 @@ This extension adds the missing piece — a client-side cap on `model.contextWin
 | --- | --- | --- | --- |
 | `reserveTokens` | ✅ | — | `compaction.reserveTokens` (Pi built-in, `settings.json`) |
 | `keepRecentTokens` | ✅ | — | `compaction.keepRecentTokens` (Pi built-in, `settings.json`) |
-| Hard cap on context window | — | ✅ | `contextCap` — mutates `model.contextWindow` in pi's registry |
-| Compaction summariser model | — | ✅ | `compactionModel` — calls pi's native `compact()` with a chosen model |
+| Hard cap on context window | ❌ | ✅ | `contextCap` — mutates `model.contextWindow` in pi's registry |
+| Compaction summariser model | ❌ | ✅ | `compactionModel` — calls pi's native `compact()` with a chosen model |
 
 > **Note:** `reserveTokens` and `keepRecentTokens` cannot be overridden by an extension — Pi's `prepareCompaction()` runs *before* the `session_before_compact` event and bakes them into the preparation. They must stay in `settings.json`.
 
