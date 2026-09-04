@@ -1,0 +1,42 @@
+name: Publish to npm
+
+# Trusted Publishing via GitHub Actions OIDC — no NPM_TOKEN secret needed.
+# npm mints a short-lived token bound to this repo + workflow on each publish.
+# Setup (one-time, AFTER the first manual publish creates the package):
+#   npmjs.com → package settings → Trusted Publisher → GitHub Actions:
+#     Organization or user : aalexren
+#     Repository           : pi-compaction-control
+#     Workflow filename    : publish.yml   (just the filename, not the path)
+#     Allowed actions       : npm publish
+# See https://docs.npmjs.com/trusted-publishers/
+
+on:
+    push:
+        tags:
+            - "v*"
+    workflow_dispatch:
+
+permissions:
+    id-token: write # required for OIDC trusted publishing
+    contents: read
+
+jobs:
+    publish:
+        runs-on: ubuntu-latest
+        steps:
+            # Pinned to immutable commit SHAs (resolved from @v4 on 2026-09-04).
+            # persist-credentials: false prevents the artipacked token-leak vector.
+            - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+              with:
+                  persist-credentials: false
+
+            - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+              with:
+                  node-version: "20"
+                  registry-url: "https://registry.npmjs.org"
+                  package-manager-cache: false # never cache in release builds
+
+            # No build step — pi loads index.ts directly.
+            # package.json "files" allowlist controls what gets published.
+            # No NODE_AUTH_TOKEN env var — trusted publishing authenticates via OIDC.
+            - run: npm publish --provenance --access public
