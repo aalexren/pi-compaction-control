@@ -82,7 +82,13 @@ Paste this into your Pi agent — it runs the install for you:
 install npm:pi-compaction-control
 ```
 
-### Option B — global (manual)
+### Option B — from npm (manual)
+
+```bash
+pi install npm:pi-compaction-control
+```
+
+### Option C — global (manual)
 
 Copy the package directory into Pi's global extensions directory:
 
@@ -91,12 +97,6 @@ cp -r pi-compaction-control ~/.pi/agent/extensions/
 ```
 
 Pi auto-discovers `~/.pi/agent/extensions/*/index.ts`. No `pi install` needed.
-
-### Option C — from npm (manual)
-
-```bash
-pi install npm:pi-compaction-control
-```
 
 ### Option D — from this repo as a pi package
 
