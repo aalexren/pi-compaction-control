@@ -18,12 +18,12 @@ Pi's built-in compaction settings (`compaction.reserveTokens`, `compaction.keepR
 
 This extension adds the missing piece — a client-side cap on `model.contextWindow` — and lets you pick which model runs the compaction summariser, all configurable per-model.
 
-| Necessity | Handled by | How |
-| --- | --- | --- |
-| `reserveTokens` | Pi built-in (`settings.json`) | `compaction.reserveTokens` |
-| `keepRecentTokens` | Pi built-in (`settings.json`) | `compaction.keepRecentTokens` |
-| Hard cap on context window | **This extension** | `contextCap` — mutates `model.contextWindow` in pi's registry |
-| Compaction summariser model | **This extension** | `compactionModel` — calls pi's native `compact()` with a chosen model |
+| Necessity | In Pi core? | Handled by | How |
+| --- | --- | --- | --- |
+| `reserveTokens` | ✅ Yes | Pi built-in (`settings.json`) | `compaction.reserveTokens` |
+| `keepRecentTokens` | ✅ Yes | Pi built-in (`settings.json`) | `compaction.keepRecentTokens` |
+| Hard cap on context window | ❌ No | **This extension** | `contextCap` — mutates `model.contextWindow` in pi's registry |
+| Compaction summariser model | ❌ No | **This extension** | `compactionModel` — calls pi's native `compact()` with a chosen model |
 
 > **Note:** `reserveTokens` and `keepRecentTokens` cannot be overridden by an extension — Pi's `prepareCompaction()` runs *before* the `session_before_compact` event and bakes them into the preparation. They must stay in `settings.json`.
 
