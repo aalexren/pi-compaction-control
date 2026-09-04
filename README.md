@@ -22,11 +22,11 @@ What you get:
 
 ## 🤔 Why
 
-Bigger context windows are not better. Even 2026 frontier models degrade sharply past ~200K tokens: RULER and MRCR v2 benchmarks show them losing **30–60 percentage points** of multi-fact retrieval accuracy between 32K and 500K — on models that *advertise* a 1M-token window.
+Bigger context windows are not better. Even 2026 frontier models degrade sharply past ~200K tokens: RULER and MRCR v2 benchmarks show them losing **30–60 percentage points** of multi-fact retrieval accuracy between 32K and 500K, on models that *advertise* a 1M-token window.
 
-Pi's built-in compaction settings (`compaction.reserveTokens`, `compaction.keepRecentTokens`) control *how much* to keep and *how much room to leave* — but they can't cap the model's context window itself. On long-context models (1M-token Claude, 500K Grok, etc.) compaction only fires at `contextWindow - reserveTokens`, which is rarely what you want for day-to-day work.
+Pi's built-in compaction settings (`compaction.reserveTokens`, `compaction.keepRecentTokens`) control *how much* to keep and *how much room to leave*, but they can't cap the model's context window itself. On long-context models (1M-token Claude, 500K Grok, etc.) compaction only fires at `contextWindow - reserveTokens`, which is rarely what you want for day-to-day work.
 
-This extension adds the missing piece — a client-side cap on `model.contextWindow` — and lets you pick which model runs the compaction summariser, all configurable per-model.
+This extension adds the missing piece: a client-side cap on `model.contextWindow`. It also lets you pick which model runs the compaction summariser, all configurable per-model.
 
 | What it does | Without extension | With extension | Config |
 | --- | --- | --- | --- |
@@ -35,7 +35,7 @@ This extension adds the missing piece — a client-side cap on `model.contextWin
 | Cap the context window | ❌ | ✅ | `contextCap` |
 | Pick the summariser model | ❌ | ✅ | `compactionModel` |
 
-> **Note:** `reserveTokens` and `keepRecentTokens` cannot be overridden by an extension — Pi's `prepareCompaction()` runs *before* the `session_before_compact` event and bakes them into the preparation. They must stay in `settings.json`.
+> **Note:** `reserveTokens` and `keepRecentTokens` cannot be overridden by an extension: Pi's `prepareCompaction()` runs *before* the `session_before_compact` event and bakes them into the preparation. They must stay in `settings.json`.
 
 ---
 
