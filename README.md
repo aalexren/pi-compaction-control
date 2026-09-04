@@ -8,19 +8,17 @@
 [![GitHub code size](https://img.shields.io/github/languages/code-size/aalexren/pi-compaction-control?logo=github)](https://github.com/aalexren/pi-compaction-control)
 [![GitHub top language](https://img.shields.io/github/languages/top/aalexren/pi-compaction-control?logo=typescript)](https://github.com/aalexren/pi-compaction-control)
 
-A single [Pi Coding Agent](https://github.com/earendil-works/pi) extension that gives you full control over conversation compaction: a **granular per-model hard cap** on context windows, and a **configurable compaction model** — both read from Pi's own `settings.json`, so everything lives in one place.
+A single [Pi Coding Agent](https://github.com/earendil-works/pi) extension that gives you full control over conversation compaction: a **granular per-model hard cap** on context windows, and a **configurable compaction model**. Both read from Pi's own `settings.json`, so everything lives in one place — no extra config files, no separate package install.
 
-No external config files, no separate package install. Drop the file in `~/.pi/agent/extensions/` and configure in `settings.json`.
+**Zero token overhead.** The extension never makes LLM calls of its own: `contextCap` is a pure in-memory mutation of `model.contextWindow`, and `compactionModel` only re-routes the summariser that Pi runs anyway. No extra prompts, no extra requests, no hidden API calls.
 
----
+What you get:
 
-## 📌 TL;DR
-
-- **Zero token overhead** — the extension never makes LLM calls of its own. `contextCap` is a pure in-memory mutation of `model.contextWindow`; `compactionModel` only re-routes Pi's own compaction summariser (which Pi runs anyway). No extra prompts, no extra requests, no hidden API calls.
 - Caps oversized context windows so auto-compaction fires earlier — at `cap − reserveTokens` instead of the model's native (often huge) window.
 - Optionally picks a cheaper/faster model to run the compaction summary.
-- All config lives in Pi's own `settings.json` — no extra files.
-- Works out of the box with sensible defaults; nothing to set if you just want the 262k cap.
+- Works out of the box with sensible defaults (262k cap, all models) — nothing to set if that's all you want.
+
+Drop the file in `~/.pi/agent/extensions/` and configure in `settings.json`.
 
 ---
 
