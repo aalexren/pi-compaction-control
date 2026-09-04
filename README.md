@@ -10,12 +10,25 @@
 
 A single [Pi Coding Agent](https://github.com/earendil-works/pi) extension that gives you full control over conversation compaction: a **granular per-model hard cap** on context windows, and a **configurable compaction model**. Both read from Pi's own `settings.json`, so everything lives in one place — no extra config files, no separate package install.
 
-**Zero token overhead.** The extension never makes LLM calls of its own: `contextCap` is a pure in-memory mutation of `model.contextWindow`, and `compactionModel` only re-routes the summariser that Pi runs anyway. No extra prompts, no extra requests, no hidden API calls.
+---
 
-What you get:
+## ❓ Problem
 
+Bigger context windows are not better. Modern long-context models (1M-token Claude, 500K Grok) sound like a license to never compact, but research shows accuracy and recall **degrade as the context grows** — even well within the advertised limit, and even when the model can retrieve everything.
+
+- **"Lost in the Middle"** (Liu et al., TACL 2024) — models retrieve information at the **start and end** of a long context well, but miss it in the **middle**. GPT-3.5-Turbo's multi-document QA accuracy drops **>20%** when the relevant document is mid-context, falling **below closed-book performance** (56.1%). Performance decreases as the input context grows longer. ([arXiv:2307.03172](https://arxiv.org/abs/2307.03172))
+- **Context length alone hurts** (Du et al., EMNLP Findings 2025) — performance drops **13.9%–85%** across math (GSM8K), QA (MMLU), and coding (HumanEval) as input length grows, *even when retrieval is perfect*. Llama-3.1-8B retrieves all evidence with exact match on 970/1000 MMLU problems at 30k tokens, yet accuracy still drops **24.2%**. Tested on Llama-3.1, Mistral, GPT-4o, Claude-3.5-Sonnet, Gemini-2.0. ([arXiv:2510.05381](https://arxiv.org/abs/2510.05381))
+
+The takeaway: letting a conversation balloon to the native window is a measurable accuracy tax — on top of the cost and latency of long prompts. Capping the effective window so compaction fires earlier keeps the model working in the range where it actually reasons well.
+
+---
+
+## 📌 TL;DR
+
+- **Zero token overhead** — the extension never makes LLM calls of its own. `contextCap` is a pure in-memory mutation of `model.contextWindow`; `compactionModel` only re-routes the summariser that Pi runs anyway. No extra prompts, no extra requests, no hidden API calls.
 - Caps oversized context windows so auto-compaction fires earlier — at `cap − reserveTokens` instead of the model's native (often huge) window.
 - Optionally picks a cheaper/faster model to run the compaction summary.
+- All config lives in Pi's own `settings.json` — no extra files.
 - Works out of the box with sensible defaults (262k cap, all models) — nothing to set if that's all you want.
 
 Drop the file in `~/.pi/agent/extensions/` and configure in `settings.json`.
