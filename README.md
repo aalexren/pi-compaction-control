@@ -20,13 +20,9 @@ What you get:
 
 ---
 
-## ❓ Problem
+## 🤔 Why
 
 Bigger context windows are not better. Even 2026 frontier models degrade sharply past ~200K tokens: RULER and MRCR v2 benchmarks show them losing **30–60 percentage points** of multi-fact retrieval accuracy between 32K and 500K — on models that *advertise* a 1M-token window.
-
----
-
-## 🤔 Why
 
 Pi's built-in compaction settings (`compaction.reserveTokens`, `compaction.keepRecentTokens`) control *how much* to keep and *how much room to leave* — but they can't cap the model's context window itself. On long-context models (1M-token Claude, 500K Grok, etc.) compaction only fires at `contextWindow - reserveTokens`, which is rarely what you want for day-to-day work.
 
