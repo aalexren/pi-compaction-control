@@ -14,6 +14,16 @@ No external config files, no separate package install. Drop the file in `~/.pi/a
 
 ---
 
+## 📌 TL;DR
+
+- **Zero token overhead** — the extension never makes LLM calls of its own. `contextCap` is a pure in-memory mutation of `model.contextWindow`; `compactionModel` only re-routes Pi's own compaction summariser (which Pi runs anyway). No extra prompts, no extra requests, no hidden API calls.
+- Caps oversized context windows so auto-compaction fires earlier — at `cap − reserveTokens` instead of the model's native (often huge) window.
+- Optionally picks a cheaper/faster model to run the compaction summary.
+- All config lives in Pi's own `settings.json` — no extra files.
+- Works out of the box with sensible defaults; nothing to set if you just want the 262k cap.
+
+---
+
 ## 🤔 Why
 
 Pi's built-in compaction settings (`compaction.reserveTokens`, `compaction.keepRecentTokens`) control *how much* to keep and *how much room to leave* — but they can't cap the model's context window itself. On long-context models (1M-token Claude, 500K Grok, etc.) compaction only fires at `contextWindow - reserveTokens`, which is rarely what you want for day-to-day work.
