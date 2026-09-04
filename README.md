@@ -12,7 +12,24 @@ No external config files, no separate package install. Drop the file in `~/.pi/a
 
 ---
 
-## Built-in context settings (out of the box)
+## 🤔 Why
+
+Pi's built-in compaction settings (`compaction.reserveTokens`, `compaction.keepRecentTokens`) control *how much* to keep and *how much room to leave* — but they can't cap the model's context window itself. On long-context models (1M-token Claude, 500K Grok, etc.) compaction only fires at `contextWindow - reserveTokens`, which is rarely what you want for day-to-day work.
+
+This extension adds the missing piece — a client-side cap on `model.contextWindow` — and lets you pick which model runs the compaction summariser, all configurable per-model.
+
+| Necessity | Handled by | How |
+| --- | --- | --- |
+| `reserveTokens` | Pi built-in (`settings.json`) | `compaction.reserveTokens` |
+| `keepRecentTokens` | Pi built-in (`settings.json`) | `compaction.keepRecentTokens` |
+| Hard cap on context window | **This extension** | `contextCap` — mutates `model.contextWindow` in pi's registry |
+| Compaction summariser model | **This extension** | `compactionModel` — calls pi's native `compact()` with a chosen model |
+
+> **Note:** `reserveTokens` and `keepRecentTokens` cannot be overridden by an extension — Pi's `prepareCompaction()` runs *before* the `session_before_compact` event and bakes them into the preparation. They must stay in `settings.json`.
+
+---
+
+## 📦 Built-in context settings (out of the box)
 
 Pi already ships context/compaction controls in `settings.json` — you may not need this extension at all if these are enough. They work with zero install:
 
@@ -40,7 +57,7 @@ Pi already ships context/compaction controls in `settings.json` — you may not 
 
 Auto-compaction trigger (Pi core):
 
-```
+```text
 contextTokens > contextWindow - reserveTokens
 ```
 
@@ -53,24 +70,7 @@ This extension adds exactly those two missing pieces. The built-in `compaction.*
 
 ---
 
-## Why
-
-Pi's built-in compaction settings (`compaction.reserveTokens`, `compaction.keepRecentTokens`) control *how much* to keep and *how much room to leave* — but they can't cap the model's context window itself. On long-context models (1M-token Claude, etc.) compaction only fires at `contextWindow - reserveTokens`, which is rarely what you want for day-to-day work.
-
-This extension adds the missing piece — a client-side cap on `model.contextWindow` — and lets you pick which model runs the compaction summariser, all configurable per-model.
-
-| Necessity | Handled by | How |
-| --- | --- | --- |
-| `reserveTokens` | Pi built-in (`settings.json`) | `compaction.reserveTokens` |
-| `keepRecentTokens` | Pi built-in (`settings.json`) | `compaction.keepRecentTokens` |
-| Hard cap on context window | **This extension** | `contextCap` — mutates `model.contextWindow` in pi's registry |
-| Compaction summariser model | **This extension** | `compactionModel` — calls pi's native `compact()` with a chosen model |
-
-> **Note:** `reserveTokens` and `keepRecentTokens` cannot be overridden by an extension — Pi's `prepareCompaction()` runs *before* the `session_before_compact` event and bakes them into the preparation. They must stay in `settings.json`.
-
----
-
-## Install
+## ⬇️ Install
 
 ### Option A — global (recommended)
 
@@ -106,7 +106,7 @@ After installing, **restart Pi** (or run `/reload`).
 
 ---
 
-## Configure
+## ⚙️ Configure
 
 All config lives in `~/.pi/agent/settings.json` (global) or `<project>/.pi/settings.json` (project overrides global, per top-level key).
 
@@ -228,7 +228,7 @@ On any failure (model not found, auth error, `compact()` throws), control falls 
 
 ---
 
-## How compaction now behaves
+## 🧮 How compaction now behaves
 
 With the defaults (`contextCap.cap = 262144`, `compaction.reserveTokens = 32768`):
 
@@ -240,7 +240,7 @@ using the current conversation model (since `compactionModel.model = "current"`)
 
 ---
 
-## What it does (mechanism)
+## 🔧 What it does (mechanism)
 
 | Event | Action |
 | --- | --- |
@@ -253,7 +253,7 @@ The cap works by mutating `model.contextWindow` in Pi's in-memory model registry
 
 ---
 
-## Verify it works
+## ✅ Verify it works
 
 Run Pi in non-interactive print mode — if the extension loads cleanly, it exits 0:
 
@@ -277,7 +277,7 @@ pi --list-models | grep -i context
 
 ---
 
-## Project-local overrides
+## 🌐 Project-local overrides
 
 Drop a `<project>/.pi/settings.json` with only the keys you want to override:
 
@@ -291,7 +291,7 @@ Project config merges per top-level key over global — so you can tighten the c
 
 ---
 
-## Requirements
+## 📋 Requirements
 
 - Pi Coding Agent `>= 0.85.0` (uses the `compact()` export and `modelRegistry.getApiKeyAndHeaders()`)
 
