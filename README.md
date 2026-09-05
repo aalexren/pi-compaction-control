@@ -215,10 +215,6 @@ Pi already ships context/compaction controls in `settings.json` — you may not 
     "enabled": true,            // default: true — enable auto-compaction
     "reserveTokens": 16384,    // default: 16384 — tokens reserved for the LLM response
     "keepRecentTokens": 20000  // default: 20000 — recent tokens kept (not summarized)
-  },
-  "branchSummary": {
-    "reserveTokens": 16384,    // default: 16384 — tokens reserved when selecting branch history
-    "skipPrompt": false        // default: false — skip "Summarize branch?" prompt on /tree
   }
 }
 ```
@@ -228,8 +224,6 @@ Pi already ships context/compaction controls in `settings.json` — you may not 
 | `compaction.enabled` | `true` | Enable auto-compaction (disable with `false`; `/compact` still works manually) |
 | `compaction.reserveTokens` | `16384` | Tokens to reserve for the LLM response — auto-compaction fires when `contextTokens > contextWindow - reserveTokens` |
 | `compaction.keepRecentTokens` | `20000` | Recent tokens to keep verbatim (not summarized) |
-| `branchSummary.reserveTokens` | `16384` | Tokens reserved when selecting branch history (output capped at 4096) |
-| `branchSummary.skipPrompt` | `false` | Skip the "Summarize branch?" prompt on `/tree` navigation |
 
 Auto-compaction trigger (Pi core):
 
@@ -248,13 +242,112 @@ This extension adds exactly those two missing pieces. The built-in `compaction.*
 
 ## 🧮 How compaction now behaves
 
-With the defaults (`contextCap.cap = 262144`, `compaction.reserveTokens = 32768`):
+Four numbers decide when compaction fires, how much it keeps, and how big the summary can be:
 
-```
-auto-compaction fires at  262144 − 32768 = 229376 tokens
+```text
+trigger        =  contextWindow − reserveTokens     ← when compaction fires
+summaryBudget  =  min(0.8 × reserveTokens, maxOutput)  ← how big the summary can be
+keepRecent     =  keepRecentTokens                   ← verbatim context kept
+
+after compaction:  context ≈ summary + keepRecent   (summary REPLACES old context)
 ```
 
-using the current conversation model (since `compactionModel.model = "current"`).
+`0.8` is pi's factor (it reserves 20% of `reserveTokens` for the compaction prompt overhead). `maxOutput` is the summariser model's max output (provider-side, e.g. 8,192 for a small-output model, 192,000 for a big-output one).
+
+With the defaults (`cap = 262144`, `reserve = 32768`, `keepRecent = 131072`, small-output summariser `maxOutput = 8192`):
+
+```text
+trigger       = 262144 − 32768   = 229376
+summaryBudget = min(26214, 8192) = 8192   ← output is the bottleneck, not reserve
+keepRecent    = 131072
+after compact ≈ 8192 + 131072  = 139264  ← below 229376 ✓ (90K of headroom)
+```
+
+### The no-loop constraint
+
+Compaction must leave context **below** the trigger, or it re-fires immediately in a loop:
+
+```text
+summary + keepRecent  <  trigger
+summary + keepRecent  <  cap − reserve
+```
+
+Substituting the worst case (full summary budget):
+
+```text
+keepRecent  <  cap − reserve − summaryBudget
+keepRecent  <  cap − reserve − min(0.8 × reserve, maxOutput)
+```
+
+This is a strict inequality — there is no fixed "safe margin". The headroom is whatever is left over; you just need the sum strictly below the trigger.
+
+### Two regimes
+
+Which term bottlenecks the summary depends on the model's `maxOutput`:
+
+| Regime | When | summaryBudget | keepRecent must be < |
+| --- | --- | --- | --- |
+| Small-output model | `maxOutput ≤ 0.8 × reserve` | `maxOutput` | `cap − reserve − maxOutput` |
+| Big-output model | `maxOutput > 0.8 × reserve` | `0.8 × reserve` | `cap − 1.8 × reserve` |
+
+**Small-output model** (e.g. `maxOutput = 8192`): the output cap bottlenecks the summary, so `reserve` only affects the trigger — you can raise it freely without growing the summary. Lots of room for `keepRecent`.
+
+**Big-output model** (e.g. 192K-output model): `reserve` bottlenecks the summary, so raising `reserve` is *doubly expensive* — it shrinks the trigger **and** grows the summary. `keepRecent` gets squeezed from both sides.
+
+### Big-output model, cap = 200000, reserve = 100000
+
+```text
+trigger       = 200000 − 100000  = 100000
+summaryBudget = min(80000, 192000) = 80000   ← reserve is the bottleneck
+keepRecent    must be <  100000 − 80000 = 20000
+```
+
+You can keep at most **20K** verbatim — the summary ate the rest. Raise `reserve` to 110000 and it gets worse:
+
+```text
+trigger       = 90000
+summaryBudget = min(88000, 192000) = 88000
+keepRecent    <  90000 − 88000 = 2000   ← almost nothing kept verbatim
+```
+
+### The hard ceiling on `reserve`
+
+With a big-output model, `reserve` has a hard ceiling — past it, the summary alone exceeds the trigger and **no `keepRecent` works** (not even 0):
+
+```text
+1.8 × reserve  <  cap          (big-output regime, keepRecent = 0)
+reserve        <  cap ÷ 1.8
+```
+
+For `cap = 200000`: `reserve < 111111`. At `reserve = 112000`, `summaryBudget = 89600` but `trigger = 88000` — the summary alone re-triggers compaction in an infinite loop.
+
+### What to do when the summary is too big
+
+If you're hitting the ceiling (summary approaches the trigger), you have three options — pick based on what you can spare:
+
+| Option | Effect | Tradeoff |
+| --- | --- | --- |
+| Lower `reserve` | Smaller summary, bigger trigger, more `keepRecent` room | Less detail preserved in the summary |
+| Raise `cap` (up to native window) | More total room for everything | Compaction fires later; longer context before summarising |
+| Accept tiny `keepRecent` | Keeps the big summary | Almost nothing verbatim; the model relies on the summary alone |
+
+You cannot have all three of big summaries, big `keepRecent`, and a low `cap`. The extension can't relax this — it's arithmetic.
+
+### Choosing values
+
+| Goal | Tune | Effect |
+| --- | --- | --- |
+| Fire sooner (compact more often) | Lower `cap` or raise `reserve` | Less working context between compactions |
+| Keep more recent context | Raise `keepRecent` (lower `reserve` on big-output models) | More verbatim turns preserved |
+| Bigger summaries | Raise `reserve` (only helps if `maxOutput > 0.8 × reserve`) | Up to `0.8 × reserve`; squeezes `keepRecent` |
+| Later compaction (more working room) | Raise `cap` | More context before summarising |
+
+**Sanity check before shipping** — verify the no-loop constraint holds:
+
+```text
+summaryBudget = min(0.8 × reserve, maxOutput)
+keepRecent    < cap − reserve − summaryBudget   (must be > 0, ideally with headroom)
+```
 
 ---
 
