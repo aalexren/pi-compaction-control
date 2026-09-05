@@ -107,7 +107,6 @@ Caps every matching model's effective `contextWindow` so auto-compaction fires a
 {
   "contextCap": {
     "cap": 256000,                       // default target contextWindow (tokens)
-    "appliesOver": 256000,               // only cap models whose native window exceeds this
     "matchPatterns": ["*"],              // id-substring matchers (case-insensitive); ["*"] = all
     "models": {                          // per-model-id granular overrides (wins over patterns)
       "gpt-6-astra": 200000,
@@ -121,18 +120,17 @@ Caps every matching model's effective `contextWindow` so auto-compaction fires a
 | Field | Default | Description |
 | --- | --- | --- |
 | `cap` | `256000` | Target `contextWindow` for pattern-matched models |
-| `appliesOver` | `256000` | Only cap models whose native window exceeds this (ignored for per-model overrides) |
 | `matchPatterns` | `["*"]` | id-substring matchers; `"*"` matches all |
 | `models` | `{}` | Per-model-id granular caps. Always wins over pattern matching |
 | `notify` | `true` | Show a notification when a model is capped |
 
 **How matching works** (per model):
 
-1. If `models[model.id]` is set → cap to that value (always, ignores `appliesOver`).
-2. Else if `model.id` matches any `matchPatterns` → cap to `cap` only if `model.contextWindow > appliesOver`.
+1. If `models[model.id]` is set → cap to that value (always wins).
+2. Else if `model.id` matches any `matchPatterns` → cap to `cap`.
 3. Else → leave unchanged.
 
-Idempotent: models already at or below their target are skipped.
+Models already at or below their target are skipped (idempotent). If the configured cap exceeds the model's native window, the effective cap is clamped down to native — see [Cap clamped to native window](#cap-clamped-to-native-window) below.
 
 **Examples**
 
@@ -148,7 +146,6 @@ Only cap Anthropic models, leave others alone:
 {
   "contextCap": {
     "cap": 200000,
-    "appliesOver": 200000,
     "matchPatterns": ["anthropic", "claude"]
   }
 }

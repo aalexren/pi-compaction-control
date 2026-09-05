@@ -14,7 +14,6 @@
  *
  *   "contextCap": {
  *     "cap": 256000,                       // default target contextWindow
- *     "appliesOver": 256000,               // only cap models whose native window exceeds this
  *     "matchPatterns": ["*"],              // id-substring matchers; ["*"] = all
  *     "models": {                          // per-model-id granular overrides (wins over patterns)
  *       "gpt-6-astra": 200000,
@@ -62,7 +61,6 @@ import type { ThinkingLevel } from "@earendil-works/pi-ai";
 // ─────────────────────────── defaults (fallback) ───────────────────────────
 const DEFAULT_CONTEXT_CAP = {
 	cap: 256_000,
-	appliesOver: 256_000,
 	matchPatterns: ["*"] as string[],
 	models: {} as Record<string, number>,
 	notify: true,
@@ -73,7 +71,6 @@ const CONFIG_DIR_NAME = ".pi";
 // ─────────────────────────────── types ─────────────────────────────────────
 interface ContextCapConfig {
 	cap?: number;
-	appliesOver?: number;
 	matchPatterns?: string[];
 	models?: Record<string, number>;
 	notify?: boolean;
@@ -138,16 +135,15 @@ function targetCapFor(
 	cfg: ContextCapConfig,
 ): number | undefined {
 	const cap = cfg.cap ?? DEFAULT_CONTEXT_CAP.cap;
-	const appliesOver = cfg.appliesOver ?? DEFAULT_CONTEXT_CAP.appliesOver;
 	const models = cfg.models ?? DEFAULT_CONTEXT_CAP.models;
 	const patterns = cfg.matchPatterns ?? DEFAULT_CONTEXT_CAP.matchPatterns;
 
 	// Per-model granular override always wins.
 	if (models[model.id] !== undefined) return models[model.id];
 
-	// Pattern-based: only cap if native window exceeds appliesOver.
+	// Pattern-based: cap to `cap` if the model matches a pattern.
 	if (idMatchesPatterns(model.id, patterns)) {
-		if (model.contextWindow > appliesOver) return cap;
+		return cap;
 	}
 	return undefined;
 }
@@ -293,9 +289,6 @@ function validateCompactionConfig(ctx: {
 // Set by the /compaction-model command; wins over settings.json until reset
 // or until the session ends. `null` = use settings.json default.
 let runtimeOverride: CompactionModelConfig | null = null;
-
-// Last capability probe result (set on startup, read by /compaction-control-doctor).
-let lastCapabilityReport: CapabilityReport | null = null;
 
 // Track models warned about cap-exceeds-native to avoid spam on re-runs.
 const warnedCapExceedsNative = new Set<string>();
@@ -527,7 +520,6 @@ export default function (pi: ExtensionAPI) {
 		// Probe pi capabilities (serviceability) — detect breakage from pi updates.
 		probeCapabilities(ctx)
 			.then((report) => {
-				lastCapabilityReport = report;
 				reportCapabilities(report, ctx.ui, ctx.hasUI, effectiveConfigBrief(ctx));
 			})
 			.catch(() => {
@@ -765,7 +757,6 @@ export default function (pi: ExtensionAPI) {
 			let report: CapabilityReport | null = null;
 			try {
 				report = await probeCapabilities(ctx);
-				lastCapabilityReport = report;
 			} catch (err) {
 				const msg = err instanceof Error ? err.message : String(err);
 				ctx.ui.notify(`compaction-control: doctor probe crashed (${msg})`, "error");
