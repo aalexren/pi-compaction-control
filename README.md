@@ -214,7 +214,7 @@ Pi already ships context/compaction controls in `settings.json` — you may not 
   "compaction": {
     "enabled": true,            // default: true — enable auto-compaction
     "reserveTokens": 32768,    // default: 16384 — tokens reserved for the LLM response
-    "keepRecentTokens": 20000  // default: 20000 — recent tokens kept (not summarized)
+    "keepRecentTokens": 30000  // default: 20000 — recent tokens kept (not summarized)
   }
 }
 ```
