@@ -1,6 +1,6 @@
 {
   "name": "pi-compaction-control",
-  "version": "0.4.2",
+  "version": "0.4.3",
   "description": "Pi Coding Agent extension: granular per-model context-window hard cap + configurable compaction summariser model, all from settings.json.",
   "license": "MIT",
   "author": {
