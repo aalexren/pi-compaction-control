@@ -11,36 +11,32 @@ name: Publish to npm
 # See https://docs.npmjs.com/trusted-publishers/
 
 on:
-    push:
-        tags:
-            - "v*"
-    workflow_dispatch:
+      push:
+            tags:
+                  - "v*"
+      workflow_dispatch:
 
 permissions:
-    id-token: write # required for OIDC trusted publishing
-    contents: read
+      id-token: write # required for OIDC trusted publishing
+      contents: read
 
 jobs:
-    publish:
-        runs-on: ubuntu-latest
-        steps:
-            # Pinned to immutable commit SHAs (resolved from @v4 on 2026-09-04).
-            # persist-credentials: false prevents the artipacked token-leak vector.
-            - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-              with:
-                  persist-credentials: false
+      publish:
+            runs-on: ubuntu-latest
+            steps:
+                  # Pinned to immutable commit SHAs (resolved from @v4 on 2026-09-04).
+                  # persist-credentials: false prevents the artipacked token-leak vector.
+                  - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+                    with:
+                          persist-credentials: false
 
-            - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
-              with:
-                  node-version: "20"
-                  # No registry-url: setup-node writes .npmrc with a placeholder
-                  # NODE_AUTH_TOKEN (authutil.ts L55), which makes npm use token-auth
-                  # instead of OIDC Trusted Publishing. The default registry is
-                  # already registry.npmjs.org, so omitting registry-url lets
-                  # `npm publish --provenance` mint an OIDC token for auth.
-                  package-manager-cache: false # never cache in release builds
+                  - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+                    with:
+                          node-version: "20"
+                          registry-url: "https://registry.npmjs.org" # required for .npmrc registry config; Trusted Publishing uses OIDC (id-token: write + --provenance), not the placeholder NODE_AUTH_TOKEN setup-node writes
+                          package-manager-cache: false # never cache in release builds
 
-            # No build step — pi loads index.ts directly.
-            # package.json "files" allowlist controls what gets published.
-            # No NODE_AUTH_TOKEN env var — trusted publishing authenticates via OIDC.
-            - run: npm publish --provenance --access public
+                  # No build step — pi loads index.ts directly.
+                  # package.json "files" allowlist controls what gets published.
+                  # No NODE_AUTH_TOKEN env var — trusted publishing authenticates via OIDC.
+                  - run: npm publish --provenance --access public
