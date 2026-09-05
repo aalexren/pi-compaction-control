@@ -94,7 +94,7 @@ All config lives in `~/.pi/agent/settings.json` (global) or `<project>/.pi/setti
   "compaction": {
     "enabled": true,
     "reserveTokens": 32768,
-    "keepRecentTokens": 131072
+    "keepRecentTokens": 30000
   }
 }
 ```
@@ -254,13 +254,13 @@ after compaction:  context ≈ summary + keepRecent   (summary REPLACES old cont
 
 `0.8` is pi's factor (it reserves 20% of `reserveTokens` for the compaction prompt overhead). `maxOutput` is the summariser model's max output (provider-side, e.g. 8,192 for a small-output model, 192,000 for a big-output one).
 
-With the defaults (`cap = 262144`, `reserve = 32768`, `keepRecent = 131072`, small-output summariser `maxOutput = 8192`):
+With the defaults (`cap = 262144`, `reserve = 32768`, `keepRecent = 30000`, small-output summariser `maxOutput = 8192`):
 
 ```text
 trigger       = 262144 − 32768   = 229376
 summaryBudget = min(26214, 8192) = 8192   ← output is the bottleneck, not reserve
-keepRecent    = 131072
-after compact ≈ 8192 + 131072  = 139264  ← below 229376 ✓ (90K of headroom)
+keepRecent    = 30000
+after compact ≈ 8192 + 30000   = 38192   ← below 229376 ✓ (191K of headroom)
 ```
 
 ### The no-loop constraint
@@ -348,6 +348,16 @@ You cannot have all three of big summaries, big `keepRecent`, and a low `cap`. T
 summaryBudget = min(0.8 × reserve, maxOutput)
 keepRecent    < cap − reserve − summaryBudget   (must be > 0, ideally with headroom)
 ```
+
+### Cap clamped to native window
+
+If a configured cap exceeds a model's native context window, the effective cap is **silently clamped down** to that native window (the model cannot use room it does not have). The extension warns you when this happens so you know the effective cap is the native window, not your configured value:
+
+```
+compaction-control: provider/model configured cap 262,144 > native 200,000 — effective cap clamped down to 200,000
+```
+
+This is informational — the clamp is the correct behavior (the model was already running at native). The warning just makes the effective cap visible so you can lower the configured cap to match, or accept that the model runs at native. The warning fires once per model per session (no spam on `/reload`).
 
 ---
 

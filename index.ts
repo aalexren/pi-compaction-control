@@ -156,10 +156,25 @@ function targetCapFor(
 function capModel(
 	model: Model<any>,
 	cfg: ContextCapConfig,
+	notify?: (msg: string, level: "info" | "warning" | "error") => void,
 ): number | undefined {
 	const target = targetCapFor(model, cfg);
 	if (target === undefined) return undefined;
-	if (model.contextWindow <= target) return undefined; // idempotent + respect smaller native windows
+	if (model.contextWindow <= target) {
+		// Configured cap exceeds the model's native window — cap has no effect.
+		if (
+			model.contextWindow < target &&
+			notify &&
+			!warnedCapExceedsNative.has(`${model.provider}/${model.id}`)
+		) {
+			warnedCapExceedsNative.add(`${model.provider}/${model.id}`);
+			notify(
+				`compaction-control: ${model.provider}/${model.id} configured cap ${target.toLocaleString()} > native ${model.contextWindow.toLocaleString()} — effective cap clamped down to ${model.contextWindow.toLocaleString()}`,
+				"warning",
+			);
+		}
+		return undefined; // idempotent + respect smaller native windows
+	}
 	model.contextWindow = target;
 	return target;
 }
@@ -176,7 +191,7 @@ function applyCaps(
 	const shouldNotify = cfg.notify ?? DEFAULT_CONTEXT_CAP.notify;
 	for (const model of models) {
 		const before = model.contextWindow;
-		const target = capModel(model, cfg);
+		const target = capModel(model, cfg, notify);
 		if (target !== undefined) {
 			capped++;
 			const line = `${model.provider}/${model.id} ${before.toLocaleString()} -> ${target.toLocaleString()}`;
@@ -281,6 +296,9 @@ let runtimeOverride: CompactionModelConfig | null = null;
 
 // Last capability probe result (set on startup, read by /compaction-control-doctor).
 let lastCapabilityReport: CapabilityReport | null = null;
+
+// Track models warned about cap-exceeds-native to avoid spam on re-runs.
+const warnedCapExceedsNative = new Set<string>();
 
 /** Effective compaction-model config: runtime override → settings.json default. */
 function effectiveCompactionModelCfg(
@@ -478,7 +496,11 @@ export default function (pi: ExtensionAPI) {
 		// Cap the active model first (this is what shouldCompact() reads).
 		if (ctx.model) {
 			const before = ctx.model.contextWindow;
-			const target = capModel(ctx.model, cfg);
+			const target = capModel(
+				ctx.model,
+				cfg,
+				ctx.hasUI ? ctx.ui.notify : undefined,
+			);
 			if (
 				target !== undefined &&
 				(cfg.notify ?? DEFAULT_CONTEXT_CAP.notify) &&
@@ -521,7 +543,7 @@ export default function (pi: ExtensionAPI) {
 		const cfg = readConfig(ctx.cwd).contextCap ?? DEFAULT_CONTEXT_CAP;
 		const model = event.model;
 		const before = model.contextWindow;
-		const target = capModel(model, cfg);
+		const target = capModel(model, cfg, ctx.hasUI ? ctx.ui.notify : undefined);
 		if (
 			target !== undefined &&
 			(cfg.notify ?? DEFAULT_CONTEXT_CAP.notify) &&
