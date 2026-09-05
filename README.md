@@ -173,7 +173,7 @@ Follows Pi's `{ model, thinkingLevel }` convention.
 {
   "compactionModel": {
     "model": "current",                  // "current"/"default"/unset → active conversation model
-    "thinkingLevel": "medium"            // optional: minimal|low|medium|high|xhigh|max
+    "thinkingLevel": "low"               // optional: minimal|low|medium|high|xhigh|max
   }
 }
 ```
@@ -213,7 +213,7 @@ Pi already ships context/compaction controls in `settings.json` — you may not 
 {
   "compaction": {
     "enabled": true,            // default: true — enable auto-compaction
-    "reserveTokens": 16384,    // default: 16384 — tokens reserved for the LLM response
+    "reserveTokens": 32768,    // default: 16384 — tokens reserved for the LLM response
     "keepRecentTokens": 20000  // default: 20000 — recent tokens kept (not summarized)
   }
 }
