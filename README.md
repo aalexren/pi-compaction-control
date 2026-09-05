@@ -16,7 +16,7 @@ What you get:
 
 - Caps oversized context windows so auto-compaction fires earlier — at `cap − reserveTokens` instead of the model's native (often huge) window.
 - Optionally picks a cheaper/faster model to run the compaction summary.
-- Works out of the box with sensible defaults (262k cap, all models) — nothing to set if that's all you want.
+- Works out of the box with sensible defaults (256k cap, all models) — nothing to set if that's all you want.
 
 ---
 
@@ -106,8 +106,8 @@ Caps every matching model's effective `contextWindow` so auto-compaction fires a
 ```jsonc
 {
   "contextCap": {
-    "cap": 262144,                       // default target contextWindow (tokens)
-    "appliesOver": 262144,               // only cap models whose native window exceeds this
+    "cap": 256000,                       // default target contextWindow (tokens)
+    "appliesOver": 256000,               // only cap models whose native window exceeds this
     "matchPatterns": ["*"],              // id-substring matchers (case-insensitive); ["*"] = all
     "models": {                          // per-model-id granular overrides (wins over patterns)
       "gpt-6-astra": 200000,
@@ -120,8 +120,8 @@ Caps every matching model's effective `contextWindow` so auto-compaction fires a
 
 | Field | Default | Description |
 | --- | --- | --- |
-| `cap` | `262144` | Target `contextWindow` for pattern-matched models |
-| `appliesOver` | `262144` | Only cap models whose native window exceeds this (ignored for per-model overrides) |
+| `cap` | `256000` | Target `contextWindow` for pattern-matched models |
+| `appliesOver` | `256000` | Only cap models whose native window exceeds this (ignored for per-model overrides) |
 | `matchPatterns` | `["*"]` | id-substring matchers; `"*"` matches all |
 | `models` | `{}` | Per-model-id granular caps. Always wins over pattern matching |
 | `notify` | `true` | Show a notification when a model is capped |
@@ -136,10 +136,10 @@ Idempotent: models already at or below their target are skipped.
 
 **Examples**
 
-Cap everything at 262k:
+Cap everything at 256k:
 
 ```json
-{ "contextCap": { "cap": 262144 } }
+{ "contextCap": { "cap": 256000 } }
 ```
 
 Only cap Anthropic models, leave others alone:
@@ -254,13 +254,13 @@ after compaction:  context ≈ summary + keepRecent   (summary REPLACES old cont
 
 `0.8` is pi's factor (it reserves 20% of `reserveTokens` for the compaction prompt overhead). `maxOutput` is the summariser model's max output (provider-side, e.g. 8,192 for a small-output model, 192,000 for a big-output one).
 
-With the defaults (`cap = 262144`, `reserve = 32768`, `keepRecent = 30000`, small-output summariser `maxOutput = 8192`):
+With the defaults (`cap = 256000`, `reserve = 32768`, `keepRecent = 30000`, small-output summariser `maxOutput = 8192`):
 
 ```text
-trigger       = 262144 − 32768   = 229376
+trigger       = 256000 − 32768   = 223232
 summaryBudget = min(26214, 8192) = 8192   ← output is the bottleneck, not reserve
 keepRecent    = 30000
-after compact ≈ 8192 + 30000   = 38192   ← below 229376 ✓ (191K of headroom)
+after compact ≈ 8192 + 30000   = 38192   ← below 223232 ✓ (185K of headroom)
 ```
 
 ### The no-loop constraint
@@ -354,7 +354,7 @@ keepRecent    < cap − reserve − summaryBudget   (must be > 0, ideally with h
 If a configured cap exceeds a model's native context window, the effective cap is **silently clamped down** to that native window (the model cannot use room it does not have). The extension warns you when this happens so you know the effective cap is the native window, not your configured value:
 
 ```
-compaction-control: provider/model configured cap 262,144 > native 200,000 — effective cap clamped down to 200,000
+compaction-control: provider/model configured cap 256,000 > native 200,000 — effective cap clamped down to 200,000
 ```
 
 This is informational — the clamp is the correct behavior (the model was already running at native). The warning just makes the effective cap visible so you can lower the configured cap to match, or accept that the model runs at native. The warning fires once per model per session (no spam on `/reload`).
@@ -386,7 +386,7 @@ pi --no-tools --print "reply with exactly: OK"
 On startup (with `notify: true`) you'll see notifications like:
 
 ```
-compaction-control: active openai/gpt-6-astra 1,050,000 -> 262,144
+compaction-control: active openai/gpt-6-astra 1,050,000 -> 256,000
 compaction-control: capped 1 model(s)
 compaction-control: OK on pi 0.85.0 — cap 200,000, summariser current@high (all capability probes passed)
 ```

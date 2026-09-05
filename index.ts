@@ -13,8 +13,8 @@
  * compaction.* fields cannot do.
  *
  *   "contextCap": {
- *     "cap": 262144,                       // default target contextWindow
- *     "appliesOver": 262144,               // only cap models whose native window exceeds this
+ *     "cap": 256000,                       // default target contextWindow
+ *     "appliesOver": 256000,               // only cap models whose native window exceeds this
  *     "matchPatterns": ["*"],              // id-substring matchers; ["*"] = all
  *     "models": {                          // per-model-id granular overrides (wins over patterns)
  *       "gpt-6-astra": 200000,
@@ -61,8 +61,8 @@ import type { ThinkingLevel } from "@earendil-works/pi-ai";
 
 // ─────────────────────────── defaults (fallback) ───────────────────────────
 const DEFAULT_CONTEXT_CAP = {
-	cap: 262_144,
-	appliesOver: 262_144,
+	cap: 256_000,
+	appliesOver: 256_000,
 	matchPatterns: ["*"] as string[],
 	models: {} as Record<string, number>,
 	notify: true,
@@ -162,11 +162,7 @@ function capModel(
 	if (target === undefined) return undefined;
 	if (model.contextWindow <= target) {
 		// Configured cap exceeds the model's native window — cap has no effect.
-		if (
-			model.contextWindow < target &&
-			notify &&
-			!warnedCapExceedsNative.has(`${model.provider}/${model.id}`)
-		) {
+		if (model.contextWindow < target && notify && !warnedCapExceedsNative.has(`${model.provider}/${model.id}`)) {
 			warnedCapExceedsNative.add(`${model.provider}/${model.id}`);
 			notify(
 				`compaction-control: ${model.provider}/${model.id} configured cap ${target.toLocaleString()} > native ${model.contextWindow.toLocaleString()} — effective cap clamped down to ${model.contextWindow.toLocaleString()}`,
@@ -192,8 +188,8 @@ function applyCaps(
 	for (const model of models) {
 		const before = model.contextWindow;
 		const target = capModel(model, cfg, notify);
-		if (target !== undefined) {
-			capped++;
+			if (target !== undefined) {
+				capped++;
 			const line = `${model.provider}/${model.id} ${before.toLocaleString()} -> ${target.toLocaleString()}`;
 			details.push(line);
 			if (shouldNotify && notify) notify(`compaction-control: ${line}`, "info");
@@ -496,11 +492,7 @@ export default function (pi: ExtensionAPI) {
 		// Cap the active model first (this is what shouldCompact() reads).
 		if (ctx.model) {
 			const before = ctx.model.contextWindow;
-			const target = capModel(
-				ctx.model,
-				cfg,
-				ctx.hasUI ? ctx.ui.notify : undefined,
-			);
+			const target = capModel(ctx.model, cfg, ctx.hasUI ? ctx.ui.notify : undefined);
 			if (
 				target !== undefined &&
 				(cfg.notify ?? DEFAULT_CONTEXT_CAP.notify) &&
