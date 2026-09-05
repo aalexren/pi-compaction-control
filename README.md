@@ -348,13 +348,15 @@ keepRecent    < cap − reserve − summaryBudget   (must be > 0, ideally with h
 
 ### Cap clamped to native window
 
-If a configured cap exceeds a model's native context window, the effective cap is **silently clamped down** to that native window (the model cannot use room it does not have). The extension warns you when this happens so you know the effective cap is the native window, not your configured value:
+If a configured cap exceeds the **compaction model's** native context window, the effective cap is **silently clamped down** to that native window (the model cannot use room it does not have). The extension warns you when this happens so you know the effective cap is the native window, not your configured value:
 
 ```
-compaction-control: provider/model configured cap 256,000 > native 200,000 — effective cap clamped down to 200,000
+compaction-control: provider/model compaction-model configured cap 256,000 > native 200,000 — effective cap clamped down to 200,000
 ```
 
-This is informational — the clamp is the correct behavior (the model was already running at native). The warning just makes the effective cap visible so you can lower the configured cap to match, or accept that the model runs at native. The warning fires once per model per session (no spam on `/reload`).
+This is informational — the clamp is the correct behavior (the model was already running at native). The warning just makes the effective cap visible so you can lower the configured cap to match, or accept that the model runs at native.
+
+The warning fires **only for the compaction model** (the model that will actually summarise your context), not for every model in the registry. It fires on session start, on model switch, and when you set a compaction model via `/compaction-model` — once per model per session (no spam on `/reload`).
 
 ---
 

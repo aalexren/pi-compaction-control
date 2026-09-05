@@ -152,25 +152,10 @@ function targetCapFor(
 function capModel(
 	model: Model<any>,
 	cfg: ContextCapConfig,
-	notify?: (msg: string, level: "info" | "warning" | "error") => void,
 ): number | undefined {
 	const target = targetCapFor(model, cfg);
 	if (target === undefined) return undefined;
-	if (model.contextWindow <= target) {
-		// Configured cap exceeds the model's native window — cap has no effect.
-		if (
-			model.contextWindow < target &&
-			notify &&
-			!warnedCapExceedsNative.has(`${model.provider}/${model.id}`)
-		) {
-			warnedCapExceedsNative.add(`${model.provider}/${model.id}`);
-			notify(
-				`compaction-control: ${model.provider}/${model.id} configured cap ${target.toLocaleString()} > native ${model.contextWindow.toLocaleString()} — effective cap clamped down to ${model.contextWindow.toLocaleString()}`,
-				"warning",
-			);
-		}
-		return undefined; // idempotent + respect smaller native windows
-	}
+	if (model.contextWindow <= target) return undefined; // idempotent + respect smaller native windows
 	model.contextWindow = target;
 	return target;
 }
@@ -187,7 +172,7 @@ function applyCaps(
 	const shouldNotify = cfg.notify ?? DEFAULT_CONTEXT_CAP.notify;
 	for (const model of models) {
 		const before = model.contextWindow;
-		const target = capModel(model, cfg, notify);
+		const target = capModel(model, cfg);
 		if (target !== undefined) {
 			capped++;
 			const line = `${model.provider}/${model.id} ${before.toLocaleString()} -> ${target.toLocaleString()}`;
@@ -248,6 +233,21 @@ function validateCompactionConfig(ctx: {
 	);
 	const notify = (msg: string) =>
 		ctx.ui.notify(`compaction-control: ${msg}`, "warning");
+
+	// (0) Cap exceeds native — the compaction model's configured cap is above
+	// its native context window, so the cap is clamped down (no effect).
+	const capCfg = readConfig(ctx.cwd).contextCap ?? DEFAULT_CONTEXT_CAP;
+	const capTarget = targetCapFor(model, capCfg);
+	if (
+		capTarget !== undefined &&
+		capTarget > model.contextWindow &&
+		!warnedCapExceedsNative.has(`${model.provider}/${model.id}`)
+	) {
+		warnedCapExceedsNative.add(`${model.provider}/${model.id}`);
+		notify(
+			`${model.provider}/${model.id} compaction-model configured cap ${capTarget.toLocaleString()} > native ${model.contextWindow.toLocaleString()} — effective cap clamped down to ${model.contextWindow.toLocaleString()}`,
+		);
+	}
 
 	// (1) Budget too small for any summary — suggest raising reserveTokens.
 	if (summaryBudget < MIN_SUMMARY_TOKENS) {
@@ -489,11 +489,7 @@ export default function (pi: ExtensionAPI) {
 		// Cap the active model first (this is what shouldCompact() reads).
 		if (ctx.model) {
 			const before = ctx.model.contextWindow;
-			const target = capModel(
-				ctx.model,
-				cfg,
-				ctx.hasUI ? ctx.ui.notify : undefined,
-			);
+			const target = capModel(ctx.model, cfg);
 			if (
 				target !== undefined &&
 				(cfg.notify ?? DEFAULT_CONTEXT_CAP.notify) &&
@@ -535,7 +531,7 @@ export default function (pi: ExtensionAPI) {
 		const cfg = readConfig(ctx.cwd).contextCap ?? DEFAULT_CONTEXT_CAP;
 		const model = event.model;
 		const before = model.contextWindow;
-		const target = capModel(model, cfg, ctx.hasUI ? ctx.ui.notify : undefined);
+		const target = capModel(model, cfg);
 		if (
 			target !== undefined &&
 			(cfg.notify ?? DEFAULT_CONTEXT_CAP.notify) &&
@@ -701,6 +697,7 @@ export default function (pi: ExtensionAPI) {
 					`compaction-control: compaction model set to ${arg}${prev?.thinkingLevel ? ` @ ${prev.thinkingLevel}` : ""} (runtime override)`,
 					"info",
 				);
+				validateCompactionConfig(ctx);
 				return;
 			}
 
@@ -744,6 +741,7 @@ export default function (pi: ExtensionAPI) {
 				`compaction-control: compaction model set to ${modelSpec}${thinkingLevel ? ` @ ${thinkingLevel}` : ""} (runtime override)`,
 				"info",
 			);
+			validateCompactionConfig(ctx);
 		},
 	});
 
