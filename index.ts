@@ -401,11 +401,33 @@ async function probeCapabilities(ctx: {
 	return report;
 }
 
+/** Brief description of the effective cap + compaction model, for status messages. */
+function effectiveConfigBrief(ctx: {
+	model?: Model<any>;
+	cwd: string;
+}): string {
+	const parts: string[] = [];
+	// Effective cap on the active model (after applyCaps ran).
+	const m = ctx.model;
+	if (m && typeof m.contextWindow === "number") {
+		parts.push(`cap ${m.contextWindow.toLocaleString()}`);
+	}
+	// Effective compaction summariser model + thinking level.
+	const cm = effectiveCompactionModelCfg(ctx.cwd);
+	if (cm) {
+		const spec = cm.model && cm.model.trim() ? cm.model : "current";
+		const lvl = cm.thinkingLevel ? `@${cm.thinkingLevel}` : "";
+		parts.push(`summariser ${spec}${lvl}`);
+	}
+	return parts.join(", ");
+}
+
 /** Warn the user about any broken capabilities. Returns true if all critical probes passed. */
 function reportCapabilities(
 	report: CapabilityReport,
 	ui: any,
 	hasUI: boolean,
+	brief = "",
 ): boolean {
 	if (!hasUI) return report.activeModelMutable && report.compactExported;
 	const failures: string[] = [];
@@ -423,15 +445,16 @@ function reportCapabilities(
 		failures.push(
 			"getApiKeyAndHeaders() shape changed — compaction-model auth may fail",
 		);
+	const suffix = brief ? ` — ${brief}` : "";
 	if (failures.length === 0) {
 		ui.notify(
-			`compaction-control: OK on pi ${report.piVersion} (all capability probes passed)`,
+			`compaction-control: OK on pi ${report.piVersion}${suffix} (all capability probes passed)`,
 			"info",
 		);
 		return true;
 	}
 	ui.notify(
-		`compaction-control: ⚠ pi ${report.piVersion} — ${failures.length} capability issue(s): ${failures.join("; ")}. Run /compaction-control-doctor for details.`,
+		`compaction-control: ⚠ pi ${report.piVersion}${suffix} — ${failures.length} capability issue(s): ${failures.join("; ")}. Run /compaction-control-doctor for details.`,
 		"warning",
 	);
 	return false;
@@ -483,7 +506,7 @@ export default function (pi: ExtensionAPI) {
 		probeCapabilities(ctx)
 			.then((report) => {
 				lastCapabilityReport = report;
-				reportCapabilities(report, ctx.ui, ctx.hasUI);
+				reportCapabilities(report, ctx.ui, ctx.hasUI, effectiveConfigBrief(ctx));
 			})
 			.catch(() => {
 				/* best-effort, never throw on startup */
@@ -727,10 +750,16 @@ export default function (pi: ExtensionAPI) {
 				return;
 			}
 			if (!report) return;
-			const ok = reportCapabilities(report, ctx.ui, ctx.hasUI);
+			const ok = reportCapabilities(
+				report,
+				ctx.ui,
+				ctx.hasUI,
+				effectiveConfigBrief(ctx),
+			);
 			// Detailed breakdown.
 			const lines = [
 				`pi version: ${report.piVersion}`,
+				`effective config: ${effectiveConfigBrief(ctx) || "(none)"}`,
 				`compact() exported: ${report.compactExported ? "✓" : "✗"}`,
 				`ctx.model mutable (cap trigger): ${report.activeModelMutable ? "✓" : "✗"}`,
 				`registry models mutable (sweep): ${report.registryModelsMutable ? "✓" : "✗"}`,
