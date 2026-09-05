@@ -33,7 +33,11 @@ jobs:
             - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
               with:
                   node-version: "20"
-                  registry-url: "https://registry.npmjs.org"
+                  # No registry-url: setup-node writes .npmrc with a placeholder
+                  # NODE_AUTH_TOKEN (authutil.ts L55), which makes npm use token-auth
+                  # instead of OIDC Trusted Publishing. The default registry is
+                  # already registry.npmjs.org, so omitting registry-url lets
+                  # `npm publish --provenance` mint an OIDC token for auth.
                   package-manager-cache: false # never cache in release builds
 
             # No build step — pi loads index.ts directly.
