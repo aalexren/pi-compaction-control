@@ -283,9 +283,12 @@ pi --no-tools --print "reply with exactly: OK"
 On startup (with `notify: true`) you'll see notifications like:
 
 ```
-compaction-control: openai/gpt-6-astra 1,050,000 -> 262,144
+compaction-control: active openai/gpt-6-astra 1,050,000 -> 262,144
 compaction-control: capped 1 model(s)
+compaction-control: OK on pi 0.85.0 — cap 200,000, summariser current@high (all capability probes passed)
 ```
+
+The status line shows your **effective cap** and **compaction summariser** alongside the capability check. Run `/compaction-control-doctor` any time for a full breakdown (pi version, effective config, each probe ✓/✗).
 
 Check the effective window at any time:
 
