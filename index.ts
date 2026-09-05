@@ -13,14 +13,17 @@
  * compaction.* fields cannot do.
  *
  *   "contextCap": {
- *     "cap": 256000,                       // default target contextWindow
- *     "matchPatterns": ["*"],              // id-substring matchers; ["*"] = all
- *     "models": {                          // per-model-id granular overrides (wins over patterns)
+ *     "cap": 256000,                       // optional: target contextWindow for pattern-matched models (no default)
+ *     "matchPatterns": ["*"],              // optional: id-substring matchers; ["*"] = all (no default)
+ *     "models": {                          // optional: per-model-id granular overrides (wins over patterns)
  *       "gpt-6-astra": 200000,
  *       "grok-4-6": 180000
  *     },
- *     "notify": true                       // notify on each cap applied
+ *     "notify": true                       // notify on each cap applied (default: true)
  *   }
+ *
+ * All fields optional. No implicit defaults: if cap/matchPatterns/models
+ * are unset, the extension does nothing.
  *
  * ───────────────────────────── compactionModel ──────────────────────────
  * Choose which model runs pi's native compaction summariser. Follows pi's
@@ -59,9 +62,11 @@ import type {
 import type { ThinkingLevel } from "@earendil-works/pi-ai";
 
 // ─────────────────────────── defaults (fallback) ───────────────────────────
+// No implicit cap: if cap/matchPatterns/models are unset in settings, the
+// extension does nothing. Only `notify` defaults to true (cosmetic).
 const DEFAULT_CONTEXT_CAP = {
-	cap: 256_000,
-	matchPatterns: ["*"] as string[],
+	cap: undefined as number | undefined,
+	matchPatterns: [] as string[],
 	models: {} as Record<string, number>,
 	notify: true,
 };
@@ -141,8 +146,8 @@ function targetCapFor(
 	// Per-model granular override always wins.
 	if (models[model.id] !== undefined) return models[model.id];
 
-	// Pattern-based: cap to `cap` if the model matches a pattern.
-	if (idMatchesPatterns(model.id, patterns)) {
+	// Pattern-based: only cap if a cap is explicitly set AND the model matches.
+	if (cap !== undefined && idMatchesPatterns(model.id, patterns)) {
 		return cap;
 	}
 	return undefined;

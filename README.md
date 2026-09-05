@@ -103,31 +103,33 @@ All config lives in `~/.pi/agent/settings.json` (global) or `<project>/.pi/setti
 
 Caps every matching model's effective `contextWindow` so auto-compaction fires at `cap - reserveTokens` instead of the model's native window.
 
+**No implicit defaults** — if `cap`, `matchPatterns`, and `models` are all unset, the extension does nothing. You must explicitly configure at least one to cap anything. Only `notify` defaults to `true` (cosmetic).
+
 ```jsonc
 {
   "contextCap": {
-    "cap": 256000,                       // default target contextWindow (tokens)
-    "matchPatterns": ["*"],              // id-substring matchers (case-insensitive); ["*"] = all
-    "models": {                          // per-model-id granular overrides (wins over patterns)
+    "cap": 256000,                       // optional: target contextWindow for pattern-matched models (no default)
+    "matchPatterns": ["*"],              // optional: id-substring matchers (case-insensitive); ["*"] = all (no default)
+    "models": {                          // optional: per-model-id granular overrides (wins over patterns)
       "gpt-6-astra": 200000,
       "grok-4-6": 180000
     },
-    "notify": true                       // notify on each cap applied
+    "notify": true                       // notify on each cap applied (default: true)
   }
 }
 ```
 
 | Field | Default | Description |
 | --- | --- | --- |
-| `cap` | `256000` | Target `contextWindow` for pattern-matched models |
-| `matchPatterns` | `["*"]` | id-substring matchers; `"*"` matches all |
+| `cap` | *(unset)* | Target `contextWindow` for pattern-matched models. Unset = no pattern-based cap |
+| `matchPatterns` | `[]` | id-substring matchers; `"*"` matches all. Empty = no pattern matching |
 | `models` | `{}` | Per-model-id granular caps. Always wins over pattern matching |
 | `notify` | `true` | Show a notification when a model is capped |
 
 **How matching works** (per model):
 
 1. If `models[model.id]` is set → cap to that value (always wins).
-2. Else if `model.id` matches any `matchPatterns` → cap to `cap`.
+2. Else if `cap` is set AND `model.id` matches any `matchPatterns` → cap to `cap`.
 3. Else → leave unchanged.
 
 Models already at or below their target are skipped (idempotent). If the configured cap exceeds the model's native window, the effective cap is clamped down to native — see [Cap clamped to native window](#cap-clamped-to-native-window) below.
@@ -137,7 +139,7 @@ Models already at or below their target are skipped (idempotent). If the configu
 Cap everything at 256k:
 
 ```json
-{ "contextCap": { "cap": 256000 } }
+{ "contextCap": { "cap": 256000, "matchPatterns": ["*"] } }
 ```
 
 Only cap Anthropic models, leave others alone:
@@ -156,7 +158,6 @@ Cap one specific model, leave everything else:
 ```json
 {
   "contextCap": {
-    "matchPatterns": [],
     "models": { "gpt-6-astra": 200000 }
   }
 }
