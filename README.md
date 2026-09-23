@@ -388,7 +388,7 @@ On startup (with `notify: true`) you'll see notifications like:
 ```
 compaction-control: active openai/gpt-6-astra 1,050,000 -> 256,000
 compaction-control: capped 1 model(s)
-compaction-control: OK on pi 0.85.0 — cap 200,000, summariser current@high (all capability probes passed)
+compaction-control: OK on pi 0.87.1 — cap 200,000, summariser current@high (all capability probes passed)
 ```
 
 The status line shows your **effective cap** and **compaction summariser** alongside the capability check. Run `/compaction-control-doctor` any time for a full breakdown (pi version, effective config, each probe ✓/✗).
@@ -417,7 +417,7 @@ Project config merges per top-level key over global — so you can tighten the c
 
 ## 📋 Requirements
 
-- Pi Coding Agent `>= 0.85.0` (uses the `compact()` export and `modelRegistry.getApiKeyAndHeaders()`)
+- Pi Coding Agent `>= 0.87.0` (uses the `compact()` export, `session_before_compact`, and `modelRegistry.getApiKeyAndHeaders()`)
 
 ---
 

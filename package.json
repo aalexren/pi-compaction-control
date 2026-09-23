@@ -1,6 +1,6 @@
 {
   "name": "pi-compaction-control",
-  "version": "0.4.5",
+  "version": "0.4.6",
   "description": "Pi Coding Agent extension: granular per-model context-window hard cap + configurable compaction summariser model, all from settings.json.",
   "license": "MIT",
   "author": {
@@ -28,6 +28,11 @@
   ],
   "type": "module",
   "main": "./index.ts",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "check": "npm run typecheck && npm pack --dry-run",
+    "prepublishOnly": "npm run typecheck"
+  },
   "files": [
     "index.ts",
     "README.md",
@@ -39,11 +44,12 @@
     ]
   },
   "peerDependencies": {
-    "@earendil-works/pi-coding-agent": ">=0.85.0"
+    "@earendil-works/pi-coding-agent": ">=0.87.0"
   },
   "devDependencies": {
-    "@earendil-works/pi-coding-agent": "^0.85.0",
-    "typescript": "^5.6.0"
+    "@earendil-works/pi-ai": "^0.87.1",
+    "@earendil-works/pi-coding-agent": "^0.87.1",
+    "typescript": "^5.9.3"
   },
   "engines": {
     "node": ">=18"

@@ -53,13 +53,19 @@
 import { readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import type { ExtensionAPI, Model } from "@earendil-works/pi-coding-agent";
 import { compact, VERSION } from "@earendil-works/pi-coding-agent";
 import type {
-	CompactionPreparation,
 	CompactionResult,
+	ExtensionAPI,
+	SessionBeforeCompactEvent,
 } from "@earendil-works/pi-coding-agent";
-import type { ThinkingLevel } from "@earendil-works/pi-ai";
+import type {
+	Model,
+	ProviderHeaders,
+	ThinkingLevel,
+} from "@earendil-works/pi-ai";
+
+type CompactionPreparation = SessionBeforeCompactEvent["preparation"];
 
 // ─────────────────────────── defaults (fallback) ───────────────────────────
 // No implicit cap: if cap/matchPatterns/models are unset in settings, the
@@ -303,6 +309,16 @@ function effectiveCompactionModelCfg(
 	cwd: string,
 ): CompactionModelConfig | undefined {
 	return runtimeOverride ?? readConfig(cwd).compactionModel;
+}
+
+function normalizeHeaders(
+	headers: ProviderHeaders | undefined,
+): Record<string, string> | undefined {
+	if (!headers) return undefined;
+	const normalized = Object.entries(headers).filter(
+		(entry): entry is [string, string] => typeof entry[1] === "string",
+	);
+	return normalized.length > 0 ? Object.fromEntries(normalized) : undefined;
 }
 
 /** Run pi's native compact() with a resolved model + auth. Returns CompactionResult or throws. */
@@ -614,7 +630,7 @@ export default function (pi: ExtensionAPI) {
 			runCompact(
 				preparation as CompactionPreparation,
 				resolved,
-				{ apiKey: auth.apiKey, headers: auth.headers, env: auth.env },
+				{ apiKey: auth.apiKey, headers: normalizeHeaders(auth.headers), env: auth.env },
 				customInstructions,
 				signal,
 				level,
