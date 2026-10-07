@@ -460,6 +460,7 @@ function reportCapabilities(
 	ui: any,
 	hasUI: boolean,
 	brief = "",
+	silentOnOk = false,
 ): boolean {
 	if (!hasUI) return report.activeModelMutable && report.compactExported;
 	const failures: string[] = [];
@@ -479,10 +480,15 @@ function reportCapabilities(
 		);
 	const suffix = brief ? ` — ${brief}` : "";
 	if (failures.length === 0) {
-		ui.notify(
-			`compaction-control: OK on pi ${report.piVersion}${suffix} (all capability probes passed)`,
-			"info",
-		);
+		// Stay silent on startup when everything is OK — only surface a message
+		// when something is wrong. The /compaction-control-doctor command passes
+		// silentOnOk=false so an on-demand check still prints the OK line.
+		if (!silentOnOk) {
+			ui.notify(
+				`compaction-control: OK on pi ${report.piVersion}${suffix} (all capability probes passed)`,
+				"info",
+			);
+		}
 		return true;
 	}
 	ui.notify(
@@ -537,7 +543,15 @@ export default function (pi: ExtensionAPI) {
 		// Probe pi capabilities (serviceability) — detect breakage from pi updates.
 		probeCapabilities(ctx)
 			.then((report) => {
-				reportCapabilities(report, ctx.ui, ctx.hasUI, effectiveConfigBrief(ctx));
+				// silentOnOk=true: no "all probes passed" chime on a healthy startup —
+				// only warn if a capability probe fails.
+				reportCapabilities(
+					report,
+					ctx.ui,
+					ctx.hasUI,
+					effectiveConfigBrief(ctx),
+					true,
+				);
 			})
 			.catch(() => {
 				/* best-effort, never throw on startup */
