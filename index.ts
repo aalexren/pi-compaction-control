@@ -449,27 +449,64 @@ async function probeCapabilities(ctx: {
 	return report;
 }
 
-/** Brief description of the effective cap + compaction model, for status messages. */
-function effectiveConfigBrief(ctx: {
-	model?: Model<any>;
-	cwd: string;
-}): string {
-	const parts: string[] = [];
-	// Effective cap on the active model (after applyCaps ran).
-	const m = ctx.model;
-	if (m && typeof m.contextWindow === "number") {
-		// Current window, not the configured cap. Calling this "cap" reported the
-		// native window as a cap when settings.json was never found.
-		parts.push(`window ${m.contextWindow.toLocaleString()}`);
+type SettingSource = "global" | "project" | "unset";
+
+function settingSource(
+	loaded: { config: ResolvedConfig; project: ResolvedConfig },
+	key: "contextCap" | "compactionModel",
+): SettingSource {
+	if (!loaded.config[key]) return "unset";
+	return loaded.project[key] ? "project" : "global";
+}
+
+function fromSource(source: SettingSource): string {
+	return source === "unset" ? "" : ` (from ${source})`;
+}
+
+/** Doctor lines: always name the model and show both window and contextCap. */
+function doctorModelLines(
+	ctx: { model?: Model<any> },
+	loaded: { config: ResolvedConfig; project: ResolvedConfig },
+): string[] {
+	const model = ctx.model;
+	const modelName = model ? `${model.provider}/${model.id}` : "(none)";
+	const window =
+		model && typeof model.contextWindow === "number"
+			? model.contextWindow.toLocaleString()
+			: "(none)";
+	const capSource = settingSource(loaded, "contextCap");
+	const capCfg = loaded.config.contextCap;
+	const applied = model && capCfg ? targetCapFor(model, capCfg) : undefined;
+	const capText = applied !== undefined ? applied.toLocaleString() : "unset";
+	const cmSource = settingSource(loaded, "compactionModel");
+	let cmText: string;
+	if (runtimeOverride) {
+		const spec = runtimeOverride.model?.trim() || "current";
+		const lvl = runtimeOverride.thinkingLevel
+			? ` @${runtimeOverride.thinkingLevel}`
+			: "";
+		cmText = `${spec}${lvl} (runtime override)`;
+	} else if (cmSource === "unset") {
+		cmText = "unset";
+	} else {
+		const cm = loaded.config.compactionModel;
+		const spec = cm?.model?.trim() || "current";
+		const lvl = cm?.thinkingLevel ? ` @${cm.thinkingLevel}` : "";
+		cmText = `${spec}${lvl}${fromSource(cmSource)}`;
 	}
-	// Effective compaction summariser model + thinking level.
-	const cm = effectiveCompactionModelCfg(ctx.cwd);
-	if (cm) {
-		const spec = cm.model && cm.model.trim() ? cm.model : "current";
-		const lvl = cm.thinkingLevel ? `@${cm.thinkingLevel}` : "";
-		parts.push(`summariser ${spec}${lvl}`);
-	}
-	return parts.join(", ");
+	return [
+		`model: ${modelName}`,
+		`window: ${window}`,
+		`contextCap: ${capText}${fromSource(capSource)}`,
+		`compactionModel: ${cmText}`,
+	];
+}
+
+function switchNotice(model: Model<any>, cfg: ContextCapConfig): string {
+	const cap = targetCapFor(model, cfg);
+	const window = model.contextWindow.toLocaleString();
+	const capText = cap !== undefined ? cap.toLocaleString() : "unset";
+	return `${model.provider}/${model.id} window ${window}, contextCap ${capText}`;
 }
 
 /** Warn the user about any broken capabilities. Returns true if all critical probes passed. */
@@ -561,17 +598,15 @@ export default function (pi: ExtensionAPI) {
 	pi.on("model_select", (event, ctx) => {
 		const cfg = readConfig(ctx.cwd).contextCap ?? DEFAULT_CONTEXT_CAP;
 		const model = event.model;
-		const before = model.contextWindow;
-		const target = capModel(model, cfg);
+		// Startup already capped the registry, so a switch often changes nothing.
+		// Still report the chosen model and configured cap; do not require a mutation.
+		capModel(model, cfg);
 		if (
-			target !== undefined &&
+			targetCapFor(model, cfg) !== undefined &&
 			(cfg.notify ?? DEFAULT_CONTEXT_CAP.notify) &&
 			ctx.hasUI
 		) {
-			ctx.ui.notify(
-				`compaction-control: ${model.provider}/${model.id} ${before.toLocaleString()} -> ${target.toLocaleString()}`,
-				"info",
-			);
+			ctx.ui.notify(`compaction-control: ${switchNotice(model, cfg)}`, "info");
 		}
 		// Re-sweep in case switching providers surfaced new models.
 		applyCaps(ctx.modelRegistry, cfg, ctx.hasUI ? ctx.ui.notify : undefined);
@@ -781,21 +816,13 @@ export default function (pi: ExtensionAPI) {
 	// Use after a pi update to verify the extension still works.
 	pi.registerCommand("compaction-control-doctor", {
 		description:
-			"Show which settings were read, the effective cap, and pi compatibility",
+			"Show the active model, window, contextCap, and pi compatibility",
 		handler: async (_args, ctx) => {
 			const loaded = readSettings(ctx.cwd);
-			const where = (key: "contextCap" | "compactionModel") =>
-				loaded.config[key]
-					? loaded.project[key]
-						? "project"
-						: "global"
-					: "unset";
 			const discoveryLines = [
 				`global ${join(getAgentDir(), "settings.json")}`,
 				`project ${join(ctx.cwd, CONFIG_DIR_NAME, "settings.json")}`,
-				`contextCap: ${where("contextCap")}`,
-				`compactionModel: ${where("compactionModel")}`,
-				effectiveConfigBrief(ctx) || "(no active model)",
+				...doctorModelLines(ctx, loaded),
 				...loaded.errors,
 			];
 			let report: CapabilityReport | null = null;
@@ -810,12 +837,7 @@ export default function (pi: ExtensionAPI) {
 				return;
 			}
 			if (!report) return;
-			const ok = reportCapabilities(
-				report,
-				ctx.ui,
-				ctx.hasUI,
-				effectiveConfigBrief(ctx),
-			);
+			const ok = reportCapabilities(report, ctx.ui, ctx.hasUI, "");
 			const lines = [
 				`pi version: ${report.piVersion}`,
 				...discoveryLines,

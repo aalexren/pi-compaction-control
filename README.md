@@ -124,7 +124,7 @@ Caps every matching model's effective `contextWindow` so auto-compaction fires a
 | `cap` | *(unset)* | Target `contextWindow` for pattern-matched models. Unset = no pattern-based cap |
 | `matchPatterns` | `[]` | id-substring matchers; `"*"` matches all. Empty = no pattern matching |
 | `models` | `{}` | Per-model-id granular caps. Always wins over pattern matching |
-| `notify` | `true` | Notify when the active model is capped on model switch. Startup stays quiet |
+| `notify` | `true` | On model switch, show the chosen model, its window, and `contextCap`. Startup stays quiet |
 
 **How matching works** (per model):
 
@@ -383,9 +383,9 @@ pi --no-tools --print "reply with exactly: OK"
 # → OK
 ```
 
-Startup does not announce the cap. A healthy start is silent; a broken pi capability still warns. With `notify: true` (the default), switching models still notifies when that model is capped.
+Startup does not announce the cap. A healthy start is silent; a broken pi capability still warns. With `notify: true` (the default), switching models shows the chosen model, its window, and `contextCap`, even when startup already applied that cap.
 
-Run `/compaction-control-doctor` to see which settings files were read, whether `contextCap` and `compactionModel` were found, the effective window versus the configured cap, and each capability probe. That is the check for a custom `PI_CODING_AGENT_DIR`: the global path in the report must be `$PI_CODING_AGENT_DIR/settings.json`, not `~/.pi/agent/settings.json`.
+Run `/compaction-control-doctor` to see the settings paths, the active model, both `window` and `contextCap`, and where each key was read from (`from global` or `from project`). That is the check for a custom `PI_CODING_AGENT_DIR`: the global path in the report must be `$PI_CODING_AGENT_DIR/settings.json`, not `~/.pi/agent/settings.json`.
 
 Check the effective window at any time:
 
