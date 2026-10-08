@@ -57,13 +57,13 @@ pi install npm:pi-compaction-control
 
 ### Option C — global (manual)
 
-Copy the package directory into Pi's global extensions directory:
+Copy the package directory into Pi's global extensions directory. That directory follows `PI_CODING_AGENT_DIR` when set (Pi expands a leading `~`; the shell does not, so use an absolute path in the variable for this copy):
 
 ```bash
-cp -r pi-compaction-control ~/.pi/agent/extensions/
+cp -r pi-compaction-control "${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}/extensions/"
 ```
 
-Pi auto-discovers `~/.pi/agent/extensions/*/index.ts`. No `pi install` needed.
+Pi auto-discovers `<agent-dir>/extensions/*/index.ts`. No `pi install` needed.
 
 ### Option D — from this repo as a pi package
 
@@ -85,7 +85,7 @@ After installing, **restart Pi** (or run `/reload`).
 
 ## ⚙️ Configure
 
-All config lives in `~/.pi/agent/settings.json` (global) or `<project>/.pi/settings.json` (project overrides global, per top-level key).
+All config lives in Pi's own settings files. Global is `<agent-dir>/settings.json`, where `<agent-dir>` is `$PI_CODING_AGENT_DIR` if set (including `~/...`) and `~/.pi/agent` otherwise. Project is `<project>/.pi/settings.json` and overrides global per top-level key. `PI_CODING_AGENT_DIR` does not move the project file.
 
 ### 1. Built-in compaction (Pi core)
 
@@ -114,7 +114,7 @@ Caps every matching model's effective `contextWindow` so auto-compaction fires a
       "gpt-6-astra": 200000,
       "grok-4-6": 180000
     },
-    "notify": true                       // notify on each cap applied (default: true)
+    "notify": true                       // model-switch toast only; startup stays quiet (default: true)
   }
 }
 ```
@@ -124,7 +124,7 @@ Caps every matching model's effective `contextWindow` so auto-compaction fires a
 | `cap` | *(unset)* | Target `contextWindow` for pattern-matched models. Unset = no pattern-based cap |
 | `matchPatterns` | `[]` | id-substring matchers; `"*"` matches all. Empty = no pattern matching |
 | `models` | `{}` | Per-model-id granular caps. Always wins over pattern matching |
-| `notify` | `true` | Show a notification when a model is capped |
+| `notify` | `true` | Notify when the active model is capped on model switch. Startup stays quiet |
 
 **How matching works** (per model):
 
@@ -365,7 +365,7 @@ The warning fires **only for the compaction model** (the model that will actuall
 
 | Event | Action |
 | --- | --- |
-| `session_start` | Read config, cap all matching models in the registry |
+| `session_start` | Read config and cap matching models. No cap toast — use `/compaction-control-doctor` |
 | `resources_discover` | Re-cap (covers `/reload` and late model loads) |
 | `model_select` | Cap the newly selected model + re-sweep the registry |
 | `session_before_compact` | If a specific `compactionModel.model` is set, run pi's native `compact()` with it; otherwise notify and defer to pi's default |
@@ -383,15 +383,9 @@ pi --no-tools --print "reply with exactly: OK"
 # → OK
 ```
 
-On startup (with `notify: true`) you'll see notifications like:
+Startup does not announce the cap. A healthy start is silent; a broken pi capability still warns. With `notify: true` (the default), switching models still notifies when that model is capped.
 
-```
-compaction-control: active openai/gpt-6-astra 1,050,000 -> 256,000
-compaction-control: capped 1 model(s)
-compaction-control: OK on pi 0.87.1 — cap 200,000, summariser current@high (all capability probes passed)
-```
-
-The status line shows your **effective cap** and **compaction summariser** alongside the capability check. Run `/compaction-control-doctor` any time for a full breakdown (pi version, effective config, each probe ✓/✗).
+Run `/compaction-control-doctor` to see which settings files were read, whether `contextCap` and `compactionModel` were found, the effective window versus the configured cap, and each capability probe. That is the check for a custom `PI_CODING_AGENT_DIR`: the global path in the report must be `$PI_CODING_AGENT_DIR/settings.json`, not `~/.pi/agent/settings.json`.
 
 Check the effective window at any time:
 

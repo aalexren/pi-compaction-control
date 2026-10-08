@@ -1,10 +1,12 @@
 /**
  * compaction-control — single extension covering all compaction necessities.
  *
- * Reads its config from pi's own settings.json (the pi convention — same place
- * `compactionModel`-style packages put it), so you configure everything in one
- * file: ~/.pi/agent/settings.json (global) or <project>/.pi/settings.json
- * (project overrides global, per-key).
+ * Reads its config from pi's own settings.json, resolved the same way pi does:
+ * global `<getAgentDir()>/settings.json` (honours PI_CODING_AGENT_DIR, including
+ * `~` expansion; default ~/.pi/agent/settings.json) and project
+ * `<cwd>/<CONFIG_DIR_NAME>/settings.json` (stock pi: <project>/.pi/settings.json).
+ * Project overrides global per top-level key. PI_CODING_AGENT_DIR does not
+ * relocate the project file.
  *
  * ────────────────────────────── contextCap ──────────────────────────────
  * Granular, per-model hard cap on every model's effective contextWindow, so
@@ -19,7 +21,7 @@
  *       "gpt-6-astra": 200000,
  *       "grok-4-6": 180000
  *     },
- *     "notify": true                       // notify on each cap applied (default: true)
+ *     "notify": true                       // model-switch toast only; startup stays quiet (default: true)
  *   }
  *
  * All fields optional. No implicit defaults: if cap/matchPatterns/models
@@ -50,10 +52,14 @@
  *    session_before_compact and bakes them into `preparation`.)
  */
 
-import { readFileSync } from "node:fs";
-import { homedir } from "node:os";
 import { join } from "node:path";
-import { compact, VERSION } from "@earendil-works/pi-coding-agent";
+import {
+	compact,
+	CONFIG_DIR_NAME,
+	getAgentDir,
+	SettingsManager,
+	VERSION,
+} from "@earendil-works/pi-coding-agent";
 import type {
 	CompactionResult,
 	ExtensionAPI,
@@ -76,8 +82,6 @@ const DEFAULT_CONTEXT_CAP = {
 	models: {} as Record<string, number>,
 	notify: true,
 };
-const GLOBAL_SETTINGS_PATH = join(homedir(), ".pi", "agent", "settings.json");
-const CONFIG_DIR_NAME = ".pi";
 
 // ─────────────────────────────── types ─────────────────────────────────────
 interface ContextCapConfig {
@@ -103,34 +107,46 @@ interface ResolvedConfig {
 }
 
 // ─────────────────────────── config reading ────────────────────────────────
-/** Safely read+parse a JSON settings file. Returns {} on any error. */
-function readJson(path: string): Record<string, unknown> {
+// SettingsManager is pi's settings loader (present since 0.87.0). It already
+// honours PI_CODING_AGENT_DIR, tilde expansion, CONFIG_DIR_NAME, and BOM.
+// Extension keys are not on the Settings type; they survive on the loaded
+// objects. Project still wins per top-level key — do not use the deep-merged
+// view, which 0.87 does not even expose (no getSettings()).
+function readSettings(cwd: string): {
+	global: ResolvedConfig;
+	project: ResolvedConfig;
+	config: ResolvedConfig;
+	errors: string[];
+} {
 	try {
-		return JSON.parse(readFileSync(path, "utf8")) as Record<string, unknown>;
-	} catch {
-		return {};
+		const manager = SettingsManager.create(cwd);
+		const global = manager.getGlobalSettings() as ResolvedConfig;
+		const project = manager.getProjectSettings() as ResolvedConfig;
+		const merged = { ...global, ...project };
+		const config: ResolvedConfig = {};
+		if (merged.contextCap && typeof merged.contextCap === "object") {
+			config.contextCap = merged.contextCap;
+		}
+		if (merged.compactionModel && typeof merged.compactionModel === "object") {
+			config.compactionModel = merged.compactionModel;
+		}
+		if (merged.compaction && typeof merged.compaction === "object") {
+			config.compaction = merged.compaction;
+		}
+		return {
+			global,
+			project,
+			config,
+			errors: manager.drainErrors().map((e) => `${e.scope}: ${e.error.message}`),
+		};
+	} catch (err) {
+		const message = err instanceof Error ? err.message : String(err);
+		return { global: {}, project: {}, config: {}, errors: [message] };
 	}
 }
 
-/**
- * Merge global ~/.pi/agent/settings.json with project <cwd>/.pi/settings.json.
- * Project wins per top-level key (shallow merge).
- */
 function readConfig(cwd: string): ResolvedConfig {
-	const globalCfg = readJson(GLOBAL_SETTINGS_PATH);
-	const projectCfg = readJson(join(cwd, CONFIG_DIR_NAME, "settings.json"));
-	const merged: Record<string, unknown> = { ...globalCfg, ...projectCfg };
-	const out: ResolvedConfig = {};
-	if (merged.contextCap && typeof merged.contextCap === "object") {
-		out.contextCap = merged.contextCap as ContextCapConfig;
-	}
-	if (merged.compactionModel && typeof merged.compactionModel === "object") {
-		out.compactionModel = merged.compactionModel as CompactionModelConfig;
-	}
-	if (merged.compaction && typeof merged.compaction === "object") {
-		out.compaction = merged.compaction as CompactionCoreSettings;
-	}
-	return out;
+	return readSettings(cwd).config;
 }
 
 // ─────────────────────────── context cap logic ─────────────────────────────
@@ -442,7 +458,9 @@ function effectiveConfigBrief(ctx: {
 	// Effective cap on the active model (after applyCaps ran).
 	const m = ctx.model;
 	if (m && typeof m.contextWindow === "number") {
-		parts.push(`cap ${m.contextWindow.toLocaleString()}`);
+		// Current window, not the configured cap. Calling this "cap" reported the
+		// native window as a cap when settings.json was never found.
+		parts.push(`window ${m.contextWindow.toLocaleString()}`);
 	}
 	// Effective compaction summariser model + thinking level.
 	const cm = effectiveCompactionModelCfg(ctx.cwd);
@@ -513,45 +531,23 @@ export default function (pi: ExtensionAPI) {
 		cwd: string;
 	}) => {
 		const cfg = readConfig(ctx.cwd).contextCap ?? DEFAULT_CONTEXT_CAP;
-		// Cap the active model first (this is what shouldCompact() reads).
-		if (ctx.model) {
-			const before = ctx.model.contextWindow;
-			const target = capModel(ctx.model, cfg);
-			if (
-				target !== undefined &&
-				(cfg.notify ?? DEFAULT_CONTEXT_CAP.notify) &&
-				ctx.hasUI
-			) {
-				ctx.ui.notify(
-					`compaction-control: active ${ctx.model.provider}/${ctx.model.id} ${before.toLocaleString()} -> ${target.toLocaleString()}`,
-					"info",
-				);
-			}
-		}
-		// Also sweep the registry so /context, --list-models-in-session, and any
-		// registry reads see the capped windows.
-		const [n] = applyCaps(
-			ctx.modelRegistry,
-			cfg,
-			ctx.hasUI ? ctx.ui.notify : undefined,
-		);
-		if (n > 0 && ctx.hasUI) {
-			ctx.ui.notify(`compaction-control: capped ${n} model(s)`, "info");
-		}
+		// Cap silently. Startup toasts used to print the active window, which
+		// looked like a configured cap even when settings.json was never found.
+		// Discovery and the effective cap are on /compaction-control-doctor.
+		// `notify` still applies when the active model changes (model_select).
+		if (ctx.model) capModel(ctx.model, cfg);
+		// Sweep the registry so /context, --list-models-in-session, and any
+		// registry reads see the capped windows. No per-model startup toasts.
+		applyCaps(ctx.modelRegistry, cfg);
 		// Validate compaction-model config against the summary budget.
 		validateCompactionConfig(ctx);
 		// Probe pi capabilities (serviceability) — detect breakage from pi updates.
+		// No config brief here: a failed probe must not also print a window as a cap.
 		probeCapabilities(ctx)
 			.then((report) => {
 				// silentOnOk=true: no "all probes passed" chime on a healthy startup —
 				// only warn if a capability probe fails.
-				reportCapabilities(
-					report,
-					ctx.ui,
-					ctx.hasUI,
-					effectiveConfigBrief(ctx),
-					true,
-				);
+				reportCapabilities(report, ctx.ui, ctx.hasUI, "", true);
 			})
 			.catch(() => {
 				/* best-effort, never throw on startup */
@@ -784,15 +780,33 @@ export default function (pi: ExtensionAPI) {
 	// Runs capability probes on demand and reports pi-compatibility status.
 	// Use after a pi update to verify the extension still works.
 	pi.registerCommand("compaction-control-doctor", {
-		description: "Check pi compatibility (capability probes + version)",
+		description:
+			"Show which settings were read, the effective cap, and pi compatibility",
 		handler: async (_args, ctx) => {
-			// Re-run probes live so the report reflects the current pi runtime.
+			const loaded = readSettings(ctx.cwd);
+			const where = (key: "contextCap" | "compactionModel") =>
+				loaded.config[key]
+					? loaded.project[key]
+						? "project"
+						: "global"
+					: "unset";
+			const discoveryLines = [
+				`global ${join(getAgentDir(), "settings.json")}`,
+				`project ${join(ctx.cwd, CONFIG_DIR_NAME, "settings.json")}`,
+				`contextCap: ${where("contextCap")}`,
+				`compactionModel: ${where("compactionModel")}`,
+				effectiveConfigBrief(ctx) || "(no active model)",
+				...loaded.errors,
+			];
 			let report: CapabilityReport | null = null;
 			try {
 				report = await probeCapabilities(ctx);
 			} catch (err) {
 				const msg = err instanceof Error ? err.message : String(err);
-				ctx.ui.notify(`compaction-control: doctor probe crashed (${msg})`, "error");
+				ctx.ui.notify(
+					`compaction-control doctor:\n${discoveryLines.join("\n")}\nprobes: crashed (${msg})`,
+					"error",
+				);
 				return;
 			}
 			if (!report) return;
@@ -802,10 +816,9 @@ export default function (pi: ExtensionAPI) {
 				ctx.hasUI,
 				effectiveConfigBrief(ctx),
 			);
-			// Detailed breakdown.
 			const lines = [
 				`pi version: ${report.piVersion}`,
-				`effective config: ${effectiveConfigBrief(ctx) || "(none)"}`,
+				...discoveryLines,
 				`compact() exported: ${report.compactExported ? "✓" : "✗"}`,
 				`ctx.model mutable (cap trigger): ${report.activeModelMutable ? "✓" : "✗"}`,
 				`registry models mutable (sweep): ${report.registryModelsMutable ? "✓" : "✗"}`,
@@ -817,7 +830,7 @@ export default function (pi: ExtensionAPI) {
 			];
 			ctx.ui.notify(
 				`compaction-control doctor:\n${lines.join("\n")}`,
-				ok ? "info" : "warning",
+				ok && loaded.errors.length === 0 ? "info" : "warning",
 			);
 		},
 	});
