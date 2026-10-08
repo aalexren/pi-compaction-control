@@ -32,7 +32,7 @@ This extension adds the missing piece: a client-side cap on `model.contextWindow
 | --- | --- | --- | --- |
 | Reserve tokens for the reply | ✅ | ✅ | `compaction.reserveTokens` |
 | Keep recent tokens verbatim | ✅ | ✅ | `compaction.keepRecentTokens` |
-| Cap the context window | ❌ | ✅ | `contextCap` |
+| Cap the context window | ⚠️ | ✅ | `contextCap` |
 | Pick the summariser model | ❌ | ✅ | `compactionModel` |
 
 > **Note:** `reserveTokens` and `keepRecentTokens` cannot be overridden by an extension: Pi's `prepareCompaction()` runs *before* the `session_before_compact` event and bakes them into the preparation. They must stay in `settings.json`.
