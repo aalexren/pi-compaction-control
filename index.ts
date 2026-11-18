@@ -213,16 +213,46 @@ function applyCaps(
 // ─────────────────────── compaction model logic ────────────────────────────
 const CURRENT_MODEL_TOKENS = new Set(["current", "default", "active", ""]);
 
-/** Resolve "provider/modelId" to a Model via the registry. */
+/** Resolve "provider/modelId" to a Model via the registry.
+ *
+ * Provider ids may themselves contain "/" (e.g. pi-llama-cpp's
+ * "llama-server=http://127.0.0.1:8080"), so a naive first-slash split
+ * misparses them. Match the longest known provider prefix first (mirrors
+ * pi core's model resolver), then fall back to first/last-slash splits
+ * for providers not present in the registry yet.
+ */
 function resolveModel(
-	modelRegistry: { find: (p: string, m: string) => Model<any> | undefined },
+	modelRegistry: {
+		find: (p: string, m: string) => Model<any> | undefined;
+		getAvailable?: () => Model<any>[];
+	},
 	spec: string,
 ): Model<any> | undefined {
-	const slash = spec.indexOf("/");
-	if (slash < 0) return undefined;
-	const provider = spec.slice(0, slash);
-	const modelId = spec.slice(slash + 1);
-	return modelRegistry.find(provider, modelId);
+	const candidates: Array<[string, string]> = [];
+
+	// Longest known provider prefix first.
+	const knownProviders = new Set(
+		(modelRegistry.getAvailable?.() ?? []).map((m) => m.provider),
+	);
+	for (const provider of knownProviders) {
+		if (spec.startsWith(provider + "/")) {
+			candidates.push([provider, spec.slice(provider.length + 1)]);
+		}
+	}
+	candidates.sort((a, b) => b[0].length - a[0].length);
+
+	// Fallback splits for providers not (yet) in the registry.
+	const first = spec.indexOf("/");
+	if (first < 0) return undefined;
+	candidates.push([spec.slice(0, first), spec.slice(first + 1)]);
+	const last = spec.lastIndexOf("/");
+	if (last > first) candidates.push([spec.slice(0, last), spec.slice(last + 1)]);
+
+	for (const [provider, modelId] of candidates) {
+		const model = modelRegistry.find(provider, modelId);
+		if (model) return model;
+	}
+	return undefined;
 }
 
 // ─────────────────────── startup config validation ──────────────────────────
